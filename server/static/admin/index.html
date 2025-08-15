@@ -1169,6 +1169,11 @@
                 if (key === 'password' && !value) {
                     // 空密码不更新
                     continue;
+                } else if (key === 'current_password') {
+                    // 当前密码总是包含（如果提供）
+                    if (value) {
+                        updates[key] = value;
+                    }
                 } else if (key === 'is_banned') {
                     updates[key] = value === 'true';
                 } else if (key === 'talent_cost' || key === 'max_uses' || key === 'rarity') {

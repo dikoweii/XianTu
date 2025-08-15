@@ -40,6 +40,23 @@ async def update_admin_account(
     if not admin:
         raise HTTPException(status_code=404, detail="仙官不存在")
     
+    # 如果是修改自己的账号，需要验证当前密码
+    if current_admin.id == admin_id:
+        if "current_password" in updates:
+            from server.core import security
+            if not security.verify_password(updates["current_password"], admin.password):
+                raise HTTPException(status_code=400, detail="当前密码不正确")
+            del updates["current_password"]  # 移除current_password，不保存到数据库
+        elif "password" in updates or "user_name" in updates:
+            # 如果要修改密码或用户名但没有提供当前密码，拒绝请求
+            raise HTTPException(status_code=400, detail="修改密码或用户名时必须提供当前密码")
+    
+    # 检查新用户名是否已被使用
+    if "user_name" in updates and updates["user_name"] != admin.user_name:
+        existing = await AdminAccount.filter(user_name=updates["user_name"]).first()
+        if existing:
+            raise HTTPException(status_code=400, detail="此道号已被使用")
+    
     # 处理密码哈希
     if "password" in updates and updates["password"]:
         from server.core import security
