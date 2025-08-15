@@ -447,22 +447,26 @@
         </div>
     </div>
 
-    <!-- 修改密码模态框 -->
+    <!-- 修改账户信息模态框 -->
     <div id="changePasswordModal" class="modal-overlay hidden">
         <div class="modal">
-            <h3>🔐 修改密码</h3>
+            <h3>🔐 修改账户信息</h3>
             <form id="changePasswordForm">
                 <div class="form-group">
-                    <label class="form-label">当前密码</label>
+                    <label class="form-label">仙官道号</label>
+                    <input type="text" id="currentUserName" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">当前密码（修改信息时必填）</label>
                     <input type="password" id="currentPassword" class="form-input" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">新密码</label>
-                    <input type="password" id="newPassword" class="form-input" required>
+                    <label class="form-label">新密码（留空不修改）</label>
+                    <input type="password" id="newPassword" class="form-input">
                 </div>
                 <div class="form-group">
                     <label class="form-label">确认新密码</label>
-                    <input type="password" id="confirmPassword" class="form-input" required>
+                    <input type="password" id="confirmPassword" class="form-input">
                 </div>
                 <div id="changePasswordError" class="error-message hidden"></div>
                 <div class="modal-actions">
@@ -494,7 +498,7 @@
         let currentUser = null;
         let currentTab = 'players';
         let currentEditItem = null;
-        const API_BASE = '/api/v1';
+        const API_BASE = 'http://127.0.0.1:12349/api/v1';
 
         // DOM 元素
         const loginContainer = document.getElementById('loginContainer');
@@ -744,7 +748,7 @@
                         break;
 
                     case 'origins':
-                        endpoint = '/origins';
+                        endpoint = '/rules/origins';
                         columns = ['ID', '出身名称', '稀有度', '描述', '操作'];
                         formatRow = (item) => {
                             const canEdit = currentUser?.role === 'super_admin';
@@ -767,7 +771,7 @@
                         break;
 
                     case 'talents':
-                        endpoint = '/talents';
+                        endpoint = '/rules/talents';
                         columns = ['ID', '天赋名称', '稀有度', '花费点数', '最大使用次数', '描述', '操作'];
                         formatRow = (item) => {
                             const canManage = currentUser?.role === 'super_admin';
@@ -789,7 +793,7 @@
                         break;
 
                     case 'spirit_roots':
-                        endpoint = '/spirit_roots';
+                        endpoint = '/rules/spirit-roots';
                         columns = ['ID', '灵根名称', '基础倍率', '花费点数', '描述', '操作'];
                         formatRow = (item) => {
                             const canEdit = currentUser?.role === 'super_admin';
@@ -908,6 +912,8 @@
         function showChangePasswordModal() {
             document.getElementById('changePasswordModal').classList.remove('hidden');
             document.getElementById('changePasswordForm').reset();
+            // 预填充当前用户名
+            document.getElementById('currentUserName').value = currentUser.user_name;
             document.getElementById('changePasswordError').classList.add('hidden');
         }
 
@@ -917,32 +923,47 @@
 
         async function handleChangePassword(e) {
             e.preventDefault();
+            const newUserName = document.getElementById('currentUserName').value;
             const current = document.getElementById('currentPassword').value;
             const newPass = document.getElementById('newPassword').value;
             const confirm = document.getElementById('confirmPassword').value;
             
-            if (newPass !== confirm) {
+            if (newPass && newPass !== confirm) {
                 document.getElementById('changePasswordError').textContent = '新密码确认不匹配';
                 document.getElementById('changePasswordError').classList.remove('hidden');
                 return;
             }
 
             try {
+                const updates = {
+                    current_password: current
+                };
+                
+                // 只有当用户名发生变化时才更新
+                if (newUserName !== currentUser.user_name) {
+                    updates.user_name = newUserName;
+                }
+                
+                // 只有当新密码不为空时才更新
+                if (newPass) {
+                    updates.password = newPass;
+                }
+
                 const response = await fetch(`${API_BASE}/admin/accounts/${currentUser.id}`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${authToken}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        current_password: current,
-                        password: newPass
-                    })
+                    body: JSON.stringify(updates)
                 });
 
                 if (response.ok) {
+                    const updatedUser = await response.json();
+                    currentUser.user_name = updatedUser.user_name;
+                    userInfo.textContent = `欢迎，${currentUser.user_name} 仙官 (${currentUser.role === 'super_admin' ? '超级管理员' : '普通管理员'})`;
                     hideChangePasswordModal();
-                    alert('密码修改成功！');
+                    alert('账户信息修改成功！');
                 } else {
                     const error = await response.json();
                     document.getElementById('changePasswordError').textContent = error.detail || '修改失败';
@@ -966,7 +987,7 @@
                         endpoint = `/admin/codes/${itemId}`;
                         break;
                     case 'talents':
-                        endpoint = `/talents/${itemId}`;
+                        endpoint = `/rules/talents/${itemId}`;
                         break;
                     case 'players':
                         endpoint = `/users/${itemId}`;
@@ -975,10 +996,10 @@
                         endpoint = `/worlds/${itemId}`;
                         break;
                     case 'origins':
-                        endpoint = `/origins/${itemId}`;
+                        endpoint = `/rules/origins/${itemId}`;
                         break;
                     case 'spirit_roots':
-                        endpoint = `/spirit_roots/${itemId}`;
+                        endpoint = `/rules/spirit-roots/${itemId}`;
                         break;
                     default:
                         return;
@@ -1199,7 +1220,7 @@
                             endpoint = `/admin/codes/${currentEditItem.itemId}`;
                             break;
                         case 'talents':
-                            endpoint = `/talents/${currentEditItem.itemId}`;
+                            endpoint = `/rules/talents/${currentEditItem.itemId}`;
                             break;
                         case 'players':
                             endpoint = `/users/${currentEditItem.itemId}`;
@@ -1208,10 +1229,10 @@
                             endpoint = `/worlds/${currentEditItem.itemId}`;
                             break;
                         case 'origins':
-                            endpoint = `/origins/${currentEditItem.itemId}`;
+                            endpoint = `/rules/origins/${currentEditItem.itemId}`;
                             break;
                         case 'spirit_roots':
-                            endpoint = `/spirit_roots/${currentEditItem.itemId}`;
+                            endpoint = `/rules/spirit-roots/${currentEditItem.itemId}`;
                             break;
                     }
                 } else {
@@ -1226,7 +1247,7 @@
                             updates.payload = { description: updates.type };
                             break;
                         case 'talents':
-                            endpoint = '/talents';
+                            endpoint = '/rules/talents';
                             break;
                         case 'players':
                             endpoint = '/register';
@@ -1235,10 +1256,10 @@
                             endpoint = '/worlds';
                             break;
                         case 'origins':
-                            endpoint = '/origins';
+                            endpoint = '/rules/origins';
                             break;
                         case 'spirit_roots':
-                            endpoint = '/spirit_roots';
+                            endpoint = '/rules/spirit-roots';
                             break;
                     }
                 }
@@ -1280,7 +1301,7 @@
                         endpoint = `/admin/codes/${itemId}`;
                         break;
                     case 'talents':
-                        endpoint = `/talents/${itemId}`;
+                        endpoint = `/rules/talents/${itemId}`;
                         break;
                     case 'players':
                         endpoint = `/users/${itemId}`;
@@ -1289,10 +1310,10 @@
                         endpoint = `/worlds/${itemId}`;
                         break;
                     case 'origins':
-                        endpoint = `/origins/${itemId}`;
+                        endpoint = `/rules/origins/${itemId}`;
                         break;
                     case 'spirit_roots':
-                        endpoint = `/spirit_roots/${itemId}`;
+                        endpoint = `/rules/spirit-roots/${itemId}`;
                         break;
                 }
 
