@@ -47,6 +47,16 @@ async def get_code_by_string(code_str: str) -> Tuple[Optional[RedemptionCode], s
         return None, f"查验仙缘信物失败: {e}"
 
 
+async def get_code_by_id(code_id: int) -> Optional[RedemptionCode]:
+    """
+    根据ID获取兑换码
+    """
+    try:
+        return await RedemptionCode.get_or_none(id=code_id)
+    except Exception:
+        return None
+
+
 @atomic()
 async def use_code(code_str: str, user_id: int) -> Tuple[Optional[RedemptionCode], str]:
     """

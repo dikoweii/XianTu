@@ -89,3 +89,55 @@ async def create_redemption_code(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=message)
     
     return new_code
+
+@router.get("/admin/codes/{code_id}", response_model=schema.RedemptionCode, tags=["兑换码管理"])
+async def get_redemption_code(
+    code_id: int,
+    current_admin: AdminAccount = Depends(deps.get_current_active_admin_user)
+):
+    """
+    获取指定兑换码信息
+    """
+    code_obj = await crud_redemption.get_code_by_id(code_id)
+    if not code_obj:
+        raise HTTPException(status_code=404, detail="兑换码不存在")
+    return code_obj
+
+@router.put("/admin/codes/{code_id}", response_model=schema.RedemptionCode, tags=["兑换码管理"])
+async def update_redemption_code(
+    code_id: int,
+    updates: dict,
+    current_admin: AdminAccount = Depends(deps.get_current_active_admin_user)
+):
+    """
+    更新兑换码信息
+    """
+    code_obj = await crud_redemption.get_code_by_id(code_id)
+    if not code_obj:
+        raise HTTPException(status_code=404, detail="兑换码不存在")
+    
+    # 更新允许的字段
+    if "code" in updates:
+        code_obj.code = updates["code"]
+    if "type" in updates:
+        code_obj.type = updates["type"]
+    if "max_uses" in updates:
+        code_obj.max_uses = updates["max_uses"]
+    
+    await code_obj.save()
+    return code_obj
+
+@router.delete("/admin/codes/{code_id}", tags=["兑换码管理"])
+async def delete_redemption_code(
+    code_id: int,
+    current_admin: AdminAccount = Depends(deps.get_current_active_admin_user)
+):
+    """
+    删除兑换码
+    """
+    code_obj = await crud_redemption.get_code_by_id(code_id)
+    if not code_obj:
+        raise HTTPException(status_code=404, detail="兑换码不存在")
+    
+    await code_obj.delete()
+    return {"message": "兑换码已删除"}

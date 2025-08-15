@@ -4,6 +4,10 @@ import datetime
 
 # --- 基础模型 ---
 
+class User(BaseModel):
+    id: int
+    user_name: str
+
 class Token(BaseModel):
     access_token: str
     token_type: str
@@ -44,6 +48,52 @@ class AdminAccount(BaseModel):
     id: int
     user_name: str
     role: str
+    created_at: datetime.datetime
+    model_config = ConfigDict(from_attributes=True)
+
+# --- 天资等级模型 ---
+
+class TalentTier(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    total_points: int
+    rarity: int
+    color: str
+    model_config = ConfigDict(from_attributes=True)
+
+# --- 角色创建模型 ---
+
+class CharacterBaseCreate(BaseModel):
+    character_name: str
+    world_id: int
+    talent_tier_id: int
+    # 先天六司
+    root_bone: int
+    spirituality: int
+    comprehension: int
+    fortune: int
+    charm: int
+    temperament: int
+    # 可选选择
+    origin_id: Optional[int] = None
+    spirit_root_id: Optional[int] = None
+    selected_talent_ids: Optional[List[int]] = None
+
+class CharacterBase(BaseModel):
+    id: int
+    character_name: str
+    world_id: int
+    talent_tier_id: int
+    root_bone: int
+    spirituality: int
+    comprehension: int
+    fortune: int
+    charm: int
+    temperament: int
+    origin_id: Optional[int] = None
+    spirit_root_id: Optional[int] = None
+    selected_talents: Optional[List[int]] = None
     created_at: datetime.datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -96,36 +146,46 @@ class Origin(BaseModel):
     name: str
     description: Optional[str] = None
     attribute_modifiers: Optional[Dict[str, Any]] = None
+    rarity: int = 3
+    talent_cost: int = 0
     model_config = ConfigDict(from_attributes=True)
 
 class OriginCreate(BaseModel):
     name: str
     description: Optional[str] = None
     attribute_modifiers: Optional[Dict[str, Any]] = None
+    rarity: int = 3
+    talent_cost: int = 0
 
 class Talent(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
-    effects: Optional[str] = None
+    effects: Optional[Any] = None  # 简化为Any类型
+    rarity: int = 2
+    talent_cost: int = 1
     model_config = ConfigDict(from_attributes=True)
 
 class TalentCreate(BaseModel):
     name: str
     description: Optional[str] = None
-    effects: Optional[str] = None
+    effects: Optional[Any] = None  # 简化为Any类型
+    rarity: int = 2
+    talent_cost: int = 1
 
 class SpiritRoot(BaseModel):
     id: int
     name: str
     description: Optional[str] = None
     base_multiplier: float
+    talent_cost: int = 0
     model_config = ConfigDict(from_attributes=True)
 
 class SpiritRootCreate(BaseModel):
     name: str
     description: Optional[str] = None
     base_multiplier: float
+    talent_cost: int = 0
 
 # --- 通用修仙元素 ---
 
@@ -133,8 +193,6 @@ class Realm(BaseModel):
     id: int
     name: str
     title: Optional[str] = None
-    milestone: Optional[str] = None
-    lifespan: Optional[str] = None
     description: Optional[str] = None
     order: int
     model_config = ConfigDict(from_attributes=True)
@@ -142,8 +200,6 @@ class Realm(BaseModel):
 class RealmCreate(BaseModel):
     name: str
     title: Optional[str] = None
-    milestone: Optional[str] = None
-    lifespan: Optional[str] = None
     description: Optional[str] = None
     order: int
 
@@ -163,16 +219,22 @@ class CultivationArt(BaseModel):
     id: int
     name: str
     function: Optional[str] = None
-    ranks: Optional[List[Any]] = None
-    products: Optional[List[Any]] = None
+    level_system: Optional[Dict[str, Any]] = None
+    experience_curve: Optional[Dict[str, Any]] = None
+    success_formula: Optional[Dict[str, Any]] = None
+    resource_cost: Optional[Dict[str, Any]] = None
+    recipes: Optional[Dict[str, Any]] = None
     note: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 class CultivationArtCreate(BaseModel):
     name: str
     function: Optional[str] = None
-    ranks: Optional[List[Any]] = None
-    products: Optional[List[Any]] = None
+    level_system: Optional[Dict[str, Any]] = None
+    experience_curve: Optional[Dict[str, Any]] = None
+    success_formula: Optional[Dict[str, Any]] = None
+    resource_cost: Optional[Dict[str, Any]] = None
+    recipes: Optional[Dict[str, Any]] = None
     note: Optional[str] = None
 
 class WeaponType(BaseModel):
@@ -234,4 +296,5 @@ class RedemptionCodeAdminCreate(BaseModel):
 class CreationDataResponse(BaseModel):
     origins: Optional[List[Dict[str, Any]]] = None
     spirit_roots: Optional[List[Dict[str, Any]]] = None
+    talents: Optional[List[Dict[str, Any]]] = None
     world_backgrounds: Optional[List[Dict[str, Any]]] = None

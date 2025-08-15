@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import seed_worlds, seed_rules
+from . import seed_worlds, seed_rules, seed_talent_tiers
 
 async def initialize_database():
     """
@@ -9,6 +9,7 @@ async def initialize_database():
     
     await seed_worlds.seed()
     await seed_rules.seed()
+    await seed_talent_tiers.seed_talent_tiers()
 
     print("---==[ 天道演化完毕 (ORM) ]==---")
 

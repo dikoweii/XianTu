@@ -7,25 +7,180 @@ async def seed():
     """
     print("--- [Rules] 开始播种核心规则 (ORM)... ---")
 
-    # --- 初始道法定义 ---
+    # --- 出身数据（从seed.py整合，简化字段） ---
     core_origins_data = [
-        {'name': '孤儿', 'description': '天地为父母，四海为家。你的童年充满了艰辛，但也磨练了你坚韧不拔的意志。', 'attribute_modifiers': {'CON': 2, 'LUK': 1}},
-        {'name': '书香门第', 'description': '你的家族世代为官，书香传家。你自幼饱读诗书，对天地至理有自己独到的见解。', 'attribute_modifiers': {'INT': 2, 'CHA': 1}},
-        {'name': '商贾之家', 'description': '你的家族富甲一方，善于经商。你从小耳濡目染，精于计算，深谙人情世故。', 'attribute_modifiers': {'BKG': 2, 'SPI': 1}},
-        {'name': '将门之后', 'description': '你的先祖曾是叱咤风云的将军。你继承了先祖的勇武，体魄强健，杀伐果断。', 'attribute_modifiers': {'CON': 2, 'SPI': 1}},
+        {
+            'name': '书香门第', 
+            'description': '你出生于凡人学者之家，自幼饱读诗书，神识与悟性远超常人。', 
+            'attribute_modifiers': {'INT': 3, 'SPI': 2}, 
+            'rarity': 8,
+            'talent_cost': 3
+        },
+        {
+            'name': '将门虎子', 
+            'description': '你生于凡尘将帅之家，千锤百炼，体魄强健，意志坚定。', 
+            'attribute_modifiers': {'STR': 3, 'CON': 2}, 
+            'rarity': 8,
+            'talent_cost': 3
+        },
+        {
+            'name': '寒门散修', 
+            'description': '你出身贫寒，于红尘中挣扎求生，虽无背景，却磨练出坚韧不拔的道心和远超常人的气运。', 
+            'attribute_modifiers': {'CON': 1, 'LUK': 4}, 
+            'rarity': 10,
+            'talent_cost': 2
+        },
+        {
+            'name': '修仙世家', 
+            'description': '你出身于一个末流修仙家族，血脉中蕴含稀薄灵气，自幼便有长辈引路，见识不凡。', 
+            'attribute_modifiers': {'SPI': 2, 'INT': 1}, 
+            'rarity': 5,
+            'talent_cost': 2
+        },
+        {
+            'name': '魔道遗孤', 
+            'description': '你是昔日某个被正道剿灭的魔道宗门的遗孤，身负血海深仇，心性狠辣，行事不择手段。', 
+            'attribute_modifiers': {'STR': 2, 'SPI': 2, 'LUK': -1}, 
+            'rarity': 3,
+            'talent_cost': 1
+        },
+        {
+            'name': '平民出身', 
+            'description': '平凡的农家子弟，虽无特殊背景，但生活历练造就了平衡的根基。', 
+            'attribute_modifiers': {'STR': 1, 'CON': 1, 'INT': 1, 'SPI': 1}, 
+            'rarity': 1,
+            'talent_cost': 0
+        }
     ]
 
+    # --- 天赋数据（从seed.py整合，简化字段） ---
     core_talents_data = [
-        {'name': '天生道体', 'description': '你天生亲近大道，修行速度远超常人。', 'effects': {'training_speed_multiplier': 1.2}},
-        {'name': '丹道宗师', 'description': '你对药理有超凡的领悟力，炼丹时成功率更高，丹药品质也更好。', 'effects': {'alchemy_success_rate': 1.1, 'alchemy_quality_bonus': 1}},
-        {'name': '剑心通明', 'description': '你的剑道天赋无人能及，学习任何剑法都能迅速掌握其精髓。', 'effects': {'sword_art_mastery_speed': 1.5}},
-        {'name': '气运之子', 'description': '你仿佛被天地所眷顾，时常能遇到意想不到的机缘。', 'effects': {'random_event_luck_bonus': 5}},
+        {
+            'name': '天生道体', 
+            'description': '传说中的无上体质，与道相合，修行一日千里，万法皆通。', 
+            'effects': [{'type': 'ATTRIBUTE_MODIFIER', 'target': 'INT', 'value': 5}, {'type': 'ATTRIBUTE_MODIFIER', 'target': 'SPI', 'value': 5}], 
+            'rarity': 1,
+            'talent_cost': 10
+        },
+        {
+            'name': '气运之子', 
+            'description': '你仿佛被天地所眷顾，洪福齐天，时常能逢凶化吉，于危机中觅得大机缘。', 
+            'effects': [{'type': 'ATTRIBUTE_MODIFIER', 'target': 'LUK', 'value': 10}], 
+            'rarity': 1,
+            'talent_cost': 8
+        },
+        {
+            'name': '剑心通明', 
+            'description': '天生的剑修胚子，学习任何剑法都能迅速掌握精髓，剑道威力倍增。', 
+            'effects': [{'type': 'SKILL_BONUS', 'skill': 'combat.sword', 'value': 0.3}], 
+            'rarity': 3,
+            'talent_cost': 4
+        },
+        {
+            'name': '丹道天赋', 
+            'description': '你对药理有着天生的直觉，炼丹时如有神助，成丹率与品质远超常人。', 
+            'effects': [{'type': 'SKILL_BONUS', 'skill': 'alchemy', 'value': 0.25}], 
+            'rarity': 3,
+            'talent_cost': 4
+        },
+        {
+            'name': '天生神力', 
+            'description': '你的肉身天生便比常人强大，气血旺盛，力量惊人。', 
+            'effects': [{'type': 'ATTRIBUTE_MODIFIER', 'target': 'STR', 'value': 3}, {'type': 'ATTRIBUTE_MODIFIER', 'target': 'CON', 'value': 3}], 
+            'rarity': 5,
+            'talent_cost': 3
+        },
+        {
+            'name': '过目不忘', 
+            'description': '你的记忆力超群，任何功法典籍只需看过一遍便能牢记于心。', 
+            'effects': [{'type': 'ATTRIBUTE_MODIFIER', 'target': 'INT', 'value': 4}], 
+            'rarity': 5,
+            'talent_cost': 2
+        },
+        {
+            'name': '体格健壮', 
+            'description': '你比一般人更健康，不易生病，恢复力更强。', 
+            'effects': [{'type': 'ATTRIBUTE_MODIFIER', 'target': 'CON', 'value': 2}], 
+            'rarity': 10,
+            'talent_cost': 1
+        },
+        {
+            'name': '小有福源', 
+            'description': '你的运气比普通人好上一些，时常能捡到些小便宜。', 
+            'effects': [{'type': 'ATTRIBUTE_MODIFIER', 'target': 'LUK', 'value': 2}], 
+            'rarity': 10,
+            'talent_cost': 1
+        }
     ]
 
+    # --- 灵根数据（从seed.py整合，简化字段） ---
     core_spirit_roots_data = [
-        {'name': '废品灵根', 'description': '五行杂乱，灵气难以入体，修行之路崎岖坎坷。', 'base_multiplier': 0.5},
-        {'name': '五行灵根', 'description': '五行俱全，虽无专精，但胜在平和，可修行任何属性的功法。', 'base_multiplier': 1.0},
-        {'name': '天品单灵根', 'description': '五行之中专精其一，修行该属性功法时，速度一日千里。', 'base_multiplier': 2.0},
+        {
+            'name': '废灵根', 
+            'description': '五行杂乱，灵气难以入体，修行之路崎岖坎坷，常人万倍之功，难得寸进。', 
+            'base_multiplier': 0.2,
+            'talent_cost': 0
+        },
+        {
+            'name': '伪灵根', 
+            'description': '四五行驳杂之根，吐纳灵气事倍功半，修行缓慢，若无大机缘，终生无望筑基。', 
+            'base_multiplier': 0.5,
+            'talent_cost': 0
+        },
+        {
+            'name': '真灵根', 
+            'description': '二三行之灵根，虽有驳杂，但已是常人中的佼佼者，宗门遴选之基准。', 
+            'base_multiplier': 1.0,
+            'talent_cost': 2
+        },
+        {
+            'name': '天灵根 (金)', 
+            'description': '单属性灵根，纯粹无暇。纯金之体，锐意无双，修行金属性功法时速度一日千里。', 
+            'base_multiplier': 2.0,
+            'talent_cost': 5
+        },
+        {
+            'name': '天灵根 (木)', 
+            'description': '单属性灵根，纯粹无暇。草木精华所钟，生机绵长，疗伤与培植灵药有奇效。', 
+            'base_multiplier': 2.0,
+            'talent_cost': 5
+        },
+        {
+            'name': '天灵根 (水)', 
+            'description': '单属性灵根，纯粹无暇。与水相合，性情柔韧，法力回复速度远超同侪。', 
+            'base_multiplier': 2.0,
+            'talent_cost': 5
+        },
+        {
+            'name': '天灵根 (火)', 
+            'description': '单属性灵根，纯粹无暇。天生火德之体，御火之术出神入化，攻击霸道绝伦。', 
+            'base_multiplier': 2.0,
+            'talent_cost': 5
+        },
+        {
+            'name': '天灵根 (土)', 
+            'description': '单属性灵根，纯粹无暇。与大地同源，防御稳如山岳，立于不败之地。', 
+            'base_multiplier': 2.0,
+            'talent_cost': 5
+        },
+        {
+            'name': '异灵根 (风)', 
+            'description': '变异灵根，御风而行，身法飘逸无踪，速度天下无双。', 
+            'base_multiplier': 2.5,
+            'talent_cost': 8
+        },
+        {
+            'name': '异灵根 (雷)', 
+            'description': '变异灵根，掌九天神雷，破除一切邪魔，天生便是战斗的宠儿。', 
+            'base_multiplier': 2.5,
+            'talent_cost': 8
+        },
+        {
+            'name': '混沌灵根', 
+            'description': '开天辟地之前的先天之气，万法皆通，万劫不磨，无视瓶颈。', 
+            'base_multiplier': 4.0,
+            'talent_cost': 15
+        }
     ]
 
     # 1. 铭刻出身

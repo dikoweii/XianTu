@@ -158,3 +158,23 @@ async def admin_login(form_data: OAuth2PasswordRequestForm = Depends()):
         data={"sub": admin.user_name}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/admin/token", response_model=schema.Token)
+async def admin_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    """
+    管理员登录令牌接口 (与admin/login相同，为前端兼容性提供)
+    """
+    admin = await crud_user.authenticate_admin(
+        user_name=form_data.username, password=form_data.password
+    )
+    if not admin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="仙官道号或凭证错误，无法通行。",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = security.create_access_token(
+        data={"sub": admin.user_name}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}

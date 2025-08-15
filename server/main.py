@@ -1,5 +1,6 @@
 import sys
 import os
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -20,18 +21,43 @@ async def lifespan(app: FastAPI):
     应用生命周期管理
     """
     print("--- 服务器启动，开始连接数据库并检查世界根基... ---")
-    await Tortoise.init(config=TORTOISE_ORM)
-    await Tortoise.generate_schemas()
-    print("--- 数据库连接成功。---")
     
-    await crud_user.ensure_admin_account_exists()
-    await initialize_database()  # 初始化种子数据
-    print("--- 世界根基稳固，灵脉畅通。---")
+    max_retries = 2
+    for attempt in range(max_retries):
+        try:
+            print(f"--- 尝试连接数据库 ({attempt + 1}/{max_retries})... ---")
+            await asyncio.wait_for(Tortoise.init(config=TORTOISE_ORM), timeout=30.0)
+            await asyncio.wait_for(Tortoise.generate_schemas(), timeout=30.0)
+            print("--- 数据库连接成功。---")
+            break
+        except asyncio.TimeoutError:
+            print(f"--- 数据库连接超时 (尝试 {attempt + 1}/{max_retries}) ---")
+        except Exception as e:
+            print(f"--- 数据库连接失败 (尝试 {attempt + 1}/{max_retries}): {str(e)[:100]} ---")
+            
+        if attempt == max_retries - 1:
+            print("--- 数据库连接失败，服务器将以离线模式启动。 ---")
+            yield  # 允许服务器启动，但没有数据库功能
+            return
+        await asyncio.sleep(1)  # 等待1秒后重试
+    
+    try:
+        print("--- 开始初始化用户账户... ---")
+        await crud_user.ensure_admin_account_exists()
+        print("--- 开始初始化种子数据... ---")
+        await initialize_database()  # 初始化种子数据
+        print("--- 世界根基稳固，灵脉畅通。---")
+    except Exception as e:
+        print(f"--- 种子数据初始化失败: {str(e)[:100]} ---")
+        print("--- 服务器将以基础模式运行。 ---")
     
     yield
     
-    await Tortoise.close_connections()
-    print("--- 服务器关闭，灵气归于混沌。 ---")
+    try:
+        await Tortoise.close_connections()
+        print("--- 服务器关闭，灵气归于混沌。 ---")
+    except Exception as e:
+        print(f"--- 数据库连接关闭时出错: {str(e)[:50]} ---")
 
 # --- 应用与法阵初始化 ---
 app = FastAPI(
@@ -54,7 +80,11 @@ def read_root():
     """ 根路径，确认服务是否正常运转 """
     return {"message": "大道重塑，灵气归元。版本: 3.0.0"}
 
-# 挂载静态文件 - 管理后台
-app.mount("/admin", StaticFiles(directory="server/static/admin", html=True), name="admin")
+# 挂载静态文件 - 管理后台（检查目录存在）
+static_admin_path = os.path.join(os.path.dirname(__file__), "static", "admin")
+if os.path.exists(static_admin_path):
+    app.mount("/admin", StaticFiles(directory=static_admin_path, html=True), name="admin")
+else:
+    print(f"--- 静态文件目录不存在: {static_admin_path} ---")
 
 app.include_router(api_router, prefix="/api/v1")
