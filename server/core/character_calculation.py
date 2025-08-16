@@ -32,10 +32,10 @@ def calculate_core_attributes(
     # 每点先天六司提供不同的属性加成
     
     # 气血系统（基于根骨）
-    base_health = 80  # 基础气血
-    health_per_bone = 15  # 每点根骨增加的气血
-    max_health = base_health + (root_bone * health_per_bone)
-    health_recovery_rate = 1.0 + (root_bone * 0.1)  # 每点根骨增加10%恢复速度
+    base_qi_blood = 80  # 基础气血
+    qi_blood_per_bone = 15  # 每点根骨增加的气血
+    max_qi_blood = base_qi_blood + (root_bone * qi_blood_per_bone)
+    qi_blood_recovery_rate = 1.0 + (root_bone * 0.1)  # 每点根骨增加10%恢复速度
     
     # 灵气系统（基于灵性）
     base_spiritual = 60  # 基础灵气
@@ -65,19 +65,19 @@ def calculate_core_attributes(
 
     return {
         # 核心属性上限
-        "max_health_points": max_health,
+        "max_qi_blood": max_qi_blood,
         "max_spiritual_power": max_spiritual,
         "max_spirit_sense": max_spirit,
         "max_lifespan": max_lifespan,
         
         # 当前属性值（初始化时等于上限）
-        "health_points": max_health,
+        "qi_blood": max_qi_blood,
         "spiritual_power": max_spiritual,
         "spirit_sense": max_spirit,
         "current_age": birth_age, # 修正：确保使用传入的 birth_age
         
         # 恢复速度基础值（将与时间挂钩）
-        "health_recovery_rate": round(health_recovery_rate, 2),
+        "qi_blood_recovery_rate": round(qi_blood_recovery_rate, 2),
         "spiritual_recovery_rate": round(spiritual_recovery_rate, 2),
         "spirit_recovery_rate": round(spirit_recovery_rate, 2),
         

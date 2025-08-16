@@ -107,8 +107,8 @@ class CharacterGameState(Model):
     spiritual_stones = fields.BigIntField(default=100, description="灵石")
     
     # 核心三元属性（气血、灵气、神识）及其上限
-    health_points = fields.IntField(default=100, description="当前气血值")
-    max_health_points = fields.IntField(default=100, description="气血上限")
+    qi_blood = fields.IntField(default=100, description="当前气血值")
+    max_qi_blood = fields.IntField(default=100, description="气血上限")
     spiritual_power = fields.IntField(default=100, description="当前灵气值")
     max_spiritual_power = fields.IntField(default=100, description="灵气上限")
     spirit_sense = fields.IntField(default=100, description="当前神识值")
@@ -119,7 +119,7 @@ class CharacterGameState(Model):
     max_lifespan = fields.IntField(default=80, description="寿命上限")
     
     # 恢复速度（基于根骨）
-    health_recovery_rate = fields.FloatField(default=1.0, description="气血恢复速度倍率")
+    qi_blood_recovery_rate = fields.FloatField(default=1.0, description="气血恢复速度倍率")
     spiritual_recovery_rate = fields.FloatField(default=1.0, description="灵气恢复速度倍率")
     spirit_recovery_rate = fields.FloatField(default=1.0, description="神识恢复速度倍率")
     

@@ -502,12 +502,8 @@
             <h3>🚫 封禁玩家</h3>
             <form id="banForm">
                 <div class="form-group">
-                    <label class="form-label">玩家ID</label>
-                    <input type="number" id="banPlayerId" class="form-input" readonly>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">玩家名称</label>
-                    <input type="text" id="banPlayerName" class="form-input" readonly>
+                    <label class="form-label">选择玩家</label>
+                    <select id="banPlayerSelect" class="form-select" required></select>
                 </div>
                 <div class="form-group">
                     <label class="form-label">封号类型</label>
@@ -772,7 +768,7 @@
                                 actions += `<button class="action-btn edit" onclick="editItem('${tabName}', ${item.id})">编辑</button>`;
                             }
                             if (canBan && !item.is_banned) {
-                                actions += `<button class="action-btn delete" onclick="banPlayer(${item.id}, '${item.user_name}')">封号</button>`;
+                                actions += `<button class="action-btn delete" onclick="banPlayer(${item.id})">封号</button>`;
                             }
                             if (canBan && item.is_banned) {
                                 actions += `<button class="action-btn" style="background: var(--success)" onclick="unbanPlayer(${item.id}, '${item.user_name}')">解封</button>`;
@@ -1382,6 +1378,15 @@
         function hideEditModal() {
             document.getElementById('editModal').classList.add('hidden');
             currentEditItem = null;
+            
+            // Restore button default state whenever the modal is hidden
+            const submitBtn = document.getElementById('editModalSubmitBtn');
+            if (submitBtn) {
+                submitBtn.textContent = '保存';
+                submitBtn.className = 'btn btn-primary';
+                submitBtn.type = 'submit';
+                submitBtn.onclick = null;
+            }
         }
 
         async function handleEditSubmit(e) {
@@ -1877,16 +1882,68 @@
         }
 
         // 封号相关功能
-        function banPlayer(playerId, playerName) {
-            document.getElementById('banPlayerId').value = playerId;
-            document.getElementById('banPlayerName').value = playerName;
-            document.getElementById('banModal').classList.remove('hidden');
+        function banPlayer(playerId) { // playerName is no longer needed
+            const banModal = document.getElementById('banModal');
+            const banForm = document.getElementById('banForm');
+            
+            banForm.reset();
             document.getElementById('banError').classList.add('hidden');
-            document.getElementById('banForm').reset();
-            // 设置默认结束时间为1天后
+            
+            // Set default end time
             const tomorrow = new Date();
             tomorrow.setDate(tomorrow.getDate() + 1);
             document.getElementById('banEndTime').value = tomorrow.toISOString().slice(0, 16);
+
+            loadPlayersForBanModal(playerId);
+            banModal.classList.remove('hidden');
+        }
+
+        async function loadPlayersForBanModal(selectedPlayerId) {
+            const playerSelect = document.getElementById('banPlayerSelect');
+            playerSelect.innerHTML = '<option>加载玩家列表中...</option>';
+            playerSelect.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE}/users/`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                if (!response.ok) throw new Error('无法获取玩家列表');
+
+                const players = await response.json();
+                const normalPlayers = players.filter(p => !p.is_banned);
+                
+                if (selectedPlayerId) {
+                    const isSelectedPlayerInList = normalPlayers.some(p => p.id === selectedPlayerId);
+                    if (!isSelectedPlayerInList) {
+                        const selectedPlayer = players.find(p => p.id === selectedPlayerId);
+                        if (selectedPlayer) {
+                            normalPlayers.unshift(selectedPlayer);
+                        }
+                    }
+                }
+                
+                if (normalPlayers.length === 0) {
+                    playerSelect.innerHTML = '<option>无可选玩家</option>';
+                    return;
+                }
+
+                playerSelect.innerHTML = '<option value="">请选择一个玩家</option>';
+                normalPlayers.forEach(player => {
+                    const option = document.createElement('option');
+                    option.value = player.id;
+                    option.textContent = `${player.user_name} (ID: ${player.id})`;
+                    playerSelect.appendChild(option);
+                });
+
+                if (selectedPlayerId) {
+                    playerSelect.value = selectedPlayerId;
+                }
+                
+                playerSelect.disabled = false;
+
+            } catch (error) {
+                playerSelect.innerHTML = `<option>加载失败: ${error.message}</option>`;
+            }
         }
 
         function hideBanModal() {
@@ -1895,16 +1952,23 @@
 
         async function handleBanSubmit(e) {
             e.preventDefault();
-            const playerId = document.getElementById('banPlayerId').value;
+            const playerId = document.getElementById('banPlayerSelect').value;
             const banType = document.getElementById('banType').value;
             const banReason = document.getElementById('banReason').value;
             let banEndTime = null;
+            const banError = document.getElementById('banError');
+            
+            if (!playerId) {
+                banError.textContent = '请选择一个玩家';
+                banError.classList.remove('hidden');
+                return;
+            }
 
             if (banType === 'temporary') {
                 banEndTime = document.getElementById('banEndTime').value;
                 if (!banEndTime) {
-                    document.getElementById('banError').textContent = '临时封号必须设置结束时间';
-                    document.getElementById('banError').classList.remove('hidden');
+                    banError.textContent = '临时封号必须设置结束时间';
+                    banError.classList.remove('hidden');
                     return;
                 }
             }
@@ -1935,12 +1999,12 @@
                     alert('玩家封禁成功');
                 } else {
                     const error = await response.json();
-                    document.getElementById('banError').textContent = error.detail || '封禁失败';
-                    document.getElementById('banError').classList.remove('hidden');
+                    banError.textContent = error.detail || '封禁失败';
+                    banError.classList.remove('hidden');
                 }
             } catch (error) {
-                document.getElementById('banError').textContent = '网络错误';
-                document.getElementById('banError').classList.remove('hidden');
+                banError.textContent = '网络错误';
+                banError.classList.remove('hidden');
             }
         }
 
@@ -2050,6 +2114,30 @@
 
         function displayCharacterDetails(character, gameState) {
             document.getElementById('characterModalTitle').textContent = `${character.character_name} - 详细信息`;
+
+            // “补天之术”：如果 gameState 不完整，就在前端计算核心属性作为兜底
+            let finalState = gameState || {};
+            if (typeof finalState.qi_blood === 'undefined' || finalState.qi_blood === null) {
+                console.log(`检测到角色 ${character.id} 的游戏状态不完整，正在前端推演...`);
+                const calculateInitialStats = (attrs, birthAge = 16) => {
+                    const stats = {};
+                    stats.max_qi_blood = 50 + attrs.root_bone * 10;
+                    stats.qi_blood = stats.max_qi_blood;
+                    stats.max_spiritual_power = 100 + attrs.spirituality * 10;
+                    stats.spiritual_power = stats.max_spiritual_power;
+                    stats.max_spirit_sense = 10 + attrs.comprehension * 2;
+                    stats.spirit_sense = stats.max_spirit_sense;
+                    stats.max_lifespan = 60 + attrs.root_bone * 2 + attrs.fortune;
+                    stats.current_age = birthAge;
+                    stats.cultivation_experience = 0;
+                    stats.cultivation_progress = 0.0;
+                    stats.spiritual_stones = 10 * attrs.fortune;
+                    return stats;
+                };
+                const calculatedState = calculateInitialStats(character);
+                // 合并数据，后端传来的有效数据会覆盖计算出的默认值
+                finalState = { ...calculatedState, ...finalState };
+            }
             
             let html = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
@@ -2073,25 +2161,23 @@
                         <p><strong>魅力:</strong> ${character.charm}</p>
                         <p><strong>心性:</strong> ${character.temperament}</p>
                     </div>
-            `;
-            
-            if (gameState) {
-                html += `
                     <div>
                         <h4>游戏状态</h4>
-                        <p><strong>当前境界:</strong> ${gameState.current_realm_id || '凡人'}</p>
-                        <p><strong>修炼进度:</strong> ${gameState.cultivation_progress.toFixed(1)}%</p>
-                        <p><strong>修炼经验:</strong> ${gameState.cultivation_experience.toLocaleString()}</p>
-                        <p><strong>当前位置:</strong> ${gameState.current_location || '未知'}</p>
-                        <p><strong>灵石:</strong> ${gameState.spiritual_stones.toLocaleString()}</p>
-                        <p><strong>生命值:</strong> ${gameState.health_points}/100</p>
-                        <p><strong>最后同步:</strong> ${new Date(gameState.last_sync_time).toLocaleString('zh-CN')}</p>
-                        <p><strong>数据版本:</strong> ${gameState.version}</p>
+                        <p><strong>当前境界:</strong> ${finalState.current_realm_id || '凡人'}</p>
+                        <p><strong>修炼进度:</strong> ${(finalState.cultivation_progress || 0).toFixed(1)}%</p>
+                        <p><strong>修炼经验:</strong> ${(finalState.cultivation_experience || 0).toLocaleString()}</p>
+                        <p><strong>当前位置:</strong> ${finalState.current_location || '未知'}</p>
+                        <p><strong>灵石:</strong> ${(finalState.spiritual_stones || 0).toLocaleString()}</p>
+                        <p><strong>气血:</strong> ${finalState.qi_blood} / ${finalState.max_qi_blood}</p>
+                        <p><strong>灵气:</strong> ${finalState.spiritual_power} / ${finalState.max_spiritual_power}</p>
+                        <p><strong>神识:</strong> ${finalState.spirit_sense} / ${finalState.max_spirit_sense}</p>
+                        <p><strong>寿元:</strong> ${finalState.current_age} / ${finalState.max_lifespan}</p>
+                        <p><strong>最后同步:</strong> ${finalState.last_sync_time ? new Date(finalState.last_sync_time).toLocaleString('zh-CN') : '从未同步'}</p>
+                        <p><strong>数据版本:</strong> ${finalState.version || 0}</p>
                     </div>
-                `;
-            }
+                </div>
+            `;
             
-            html += `</div>`;
             document.getElementById('characterDetails').innerHTML = html;
         }
 
@@ -2136,84 +2222,13 @@
         // 扩展添加项目功能以支持封号
         function showAddItemModal() {
             if (currentTab === 'ban_records') {
-                // 显示封号界面，需要选择玩家
-                showBanPlayerSelection();
+                // Now directly opens the ban modal for player selection
+                banPlayer();
             } else {
                 currentEditItem = { tabName: currentTab, itemId: null, data: {} };
                 renderAddForm(currentTab);
                 document.getElementById('editModal').classList.remove('hidden');
             }
-        }
-
-        async function showBanPlayerSelection() {
-            try {
-                const response = await fetch(`${API_BASE}/users/`, {
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`
-                    }
-                });
-
-                if (response.ok) {
-                    const players = await response.json();
-                    const normalPlayers = players.filter(p => !p.is_banned);
-                    
-                    if (normalPlayers.length === 0) {
-                        alert('没有可封禁的玩家');
-                        return;
-                    }
-
-                    // 创建选择界面
-                    // 创建选择界面
-                    let html = `
-                        <div class="form-group">
-                            <label class="form-label">选择要封禁的玩家</label>
-                            <select id="selectPlayerToBan" name="player_to_ban" class="form-select" required>
-                                <option value="">请选择玩家</option>
-                    `;
-                    
-                    normalPlayers.forEach(player => {
-                        html += `<option value="${player.id}" data-name="${player.user_name}">${player.user_name} (ID: ${player.id})</option>`;
-                    });
-                    
-                    html += `
-                            </select>
-                        </div>
-                    `;
-
-                    document.getElementById('editModalTitle').textContent = '选择要封禁的玩家';
-                    document.getElementById('editFormFields').innerHTML = html;
-                    
-                    const submitBtn = document.getElementById('editModalSubmitBtn');
-                    submitBtn.textContent = '下一步';
-                    submitBtn.className = 'btn btn-danger'; // 更改按钮样式
-                    
-                    document.getElementById('editModal').classList.remove('hidden');
-                }
-            } catch (error) {
-                alert('获取玩家列表失败');
-            }
-        }
-
-        function proceedToBan() {
-            const selectElement = document.getElementById('selectPlayerToBan');
-            if (!selectElement) return;
-
-            const playerId = selectElement.value;
-            const selectedOption = selectElement.options[selectElement.selectedIndex];
-            
-            if (!playerId || !selectedOption) {
-                alert('请选择要封禁的玩家');
-                return;
-            }
-            const playerName = selectedOption.dataset.name;
-
-            hideEditModal();
-            // 恢复按钮默认状态
-            const submitBtn = document.getElementById('editModalSubmitBtn');
-            submitBtn.textContent = '保存';
-            submitBtn.className = 'btn btn-primary';
-            
-            banPlayer(playerId, playerName);
         }
 
     </script>

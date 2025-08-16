@@ -192,8 +192,8 @@ async def create_character_base(
         "is_deleted": new_character.is_deleted,
         "created_at": new_character.created_at,
         "game_state": {
-            "health_points": game_state.health_points,
-            "max_health_points": game_state.max_health_points,
+            "qi_blood": game_state.qi_blood,
+            "max_qi_blood": game_state.max_qi_blood,
             "spiritual_power": game_state.spiritual_power,
             "max_spiritual_power": game_state.max_spiritual_power,
             "spirit_sense": game_state.spirit_sense,
@@ -356,8 +356,8 @@ async def admin_create_character(
         "is_deleted": new_character.is_deleted,
         "created_at": new_character.created_at,
         "game_state": {
-            "health_points": game_state.health_points,
-            "max_health_points": game_state.max_health_points,
+            "qi_blood": game_state.qi_blood,
+            "max_qi_blood": game_state.max_qi_blood,
             "spiritual_power": game_state.spiritual_power,
             "max_spiritual_power": game_state.max_spiritual_power,
             "spirit_sense": game_state.spirit_sense,
@@ -512,8 +512,21 @@ async def get_character_game_state(
     
     game_state = await CharacterGameState.get_or_none(character_id=character_id)
     if not game_state:
-        # 如果不存在游戏状态，创建一个默认的
-        game_state = await CharacterGameState.create(character_id=character_id)
+        # 如果不存在游戏状态，根据角色基础属性重新计算并创建
+        from server.core.character_calculation import calculate_core_attributes
+        core_attrs = calculate_core_attributes(
+            root_bone=character.root_bone,
+            spirituality=character.spirituality,
+            comprehension=character.comprehension,
+            fortune=character.fortune,
+            charm=character.charm,
+            temperament=character.temperament,
+            birth_age=16  # 假设一个默认的出生年龄
+        )
+        game_state = await CharacterGameState.create(
+            character_id=character_id,
+            **core_attrs
+        )
     
     return game_state
 
