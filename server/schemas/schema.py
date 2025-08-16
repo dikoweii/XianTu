@@ -4,16 +4,17 @@ import datetime
 
 # --- 基础模型 ---
 
-class User(BaseModel):
-    id: int
-    user_name: str
-
 class Token(BaseModel):
     access_token: str
     token_type: str
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+    turnstile_token: str
 
 class TokenPayload(BaseModel):
     sub: str
@@ -33,6 +34,9 @@ class PlayerAccountCreate(BaseModel):
     user_name: str
     password: str
 
+class PlayerAccountCreateWithTurnstile(PlayerAccountCreate):
+    turnstile_token: str
+
 class PlayerAccountUpdate(BaseModel):
     user_name: Optional[str] = None
     password: Optional[str] = None
@@ -44,10 +48,17 @@ class PasswordChange(BaseModel):
 class AdminPasswordChange(BaseModel):
     new_password: str
 
-class AdminAccount(BaseModel):
-    id: int
+class AdminAccountBase(BaseModel):
     user_name: str
-    role: str
+    email: Optional[str] = None
+    role: str = "admin"
+    is_active: bool = True
+
+class AdminAccountCreate(AdminAccountBase):
+    password: str
+
+class AdminAccount(AdminAccountBase):
+    id: int
     created_at: datetime.datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -66,8 +77,10 @@ class TalentTier(BaseModel):
 
 class CharacterBaseCreate(BaseModel):
     character_name: str
+    player_id: Optional[int] = None  # 管理员创建时需要，普通用户创建时自动设置
     world_id: int
     talent_tier_id: int
+    birth_age: int = 16  # 出生年龄，默认16岁
     # 先天六司
     root_bone: int
     spirituality: int
@@ -94,8 +107,82 @@ class CharacterBase(BaseModel):
     origin_id: Optional[int] = None
     spirit_root_id: Optional[int] = None
     selected_talents: Optional[List[int]] = None
+    # 新增游戏状态字段
+    is_active: bool = False
+    is_deleted: bool = False
+    last_played: Optional[datetime.datetime] = None
+    play_time_minutes: int = 0
+    is_accessible: bool = True  # 计算属性，在API中动态设置
     created_at: datetime.datetime
     model_config = ConfigDict(from_attributes=True)
+
+class CharacterGameState(BaseModel):
+    id: int
+    character_id: int
+    current_realm_id: Optional[int] = None
+    cultivation_progress: float = 0.0
+    cultivation_experience: int = 0
+    current_location: Optional[str] = None
+    current_scene: Optional[str] = None
+    spiritual_stones: int = 100
+    health_points: int = 100
+    spiritual_power: int = 100
+    inventory: Dict[str, Any] = {}
+    equipped_items: Dict[str, Any] = {}
+    learned_skills: List[str] = []
+    cultivation_methods: List[str] = []
+    relationships: Dict[str, Any] = {}
+    faction_reputation: Dict[str, Any] = {}
+    active_quests: List[Dict[str, Any]] = []
+    completed_quests: List[Dict[str, Any]] = []
+    achievements: List[str] = []
+    last_sync_time: datetime.datetime
+    version: int = 1
+    is_dirty: bool = False
+    model_config = ConfigDict(from_attributes=True)
+
+class CharacterGameStateUpdate(BaseModel):
+    cultivation_progress: Optional[float] = None
+    cultivation_experience: Optional[int] = None
+    current_location: Optional[str] = None
+    current_scene: Optional[str] = None
+    spiritual_stones: Optional[int] = None
+    health_points: Optional[int] = None
+    spiritual_power: Optional[int] = None
+    inventory: Optional[Dict[str, Any]] = None
+    equipped_items: Optional[Dict[str, Any]] = None
+    learned_skills: Optional[List[str]] = None
+    cultivation_methods: Optional[List[str]] = None
+    relationships: Optional[Dict[str, Any]] = None
+    faction_reputation: Optional[Dict[str, Any]] = None
+    active_quests: Optional[List[Dict[str, Any]]] = None
+    completed_quests: Optional[List[Dict[str, Any]]] = None
+    achievements: Optional[List[str]] = None
+
+class PlayerBanRecord(BaseModel):
+    id: int
+    player_id: int
+    admin_id: Optional[int] = None
+    ban_type: str
+    reason: str
+    ban_start_time: datetime.datetime
+    ban_end_time: Optional[datetime.datetime] = None
+    is_active: bool = True
+    appeal_reason: Optional[str] = None
+    appeal_time: Optional[datetime.datetime] = None
+    appeal_status: str = "none"
+    appeal_handler_id: Optional[int] = None
+    model_config = ConfigDict(from_attributes=True)
+
+class PlayerBanCreate(BaseModel):
+    player_id: int
+    ban_type: str  # "temporary" or "permanent"
+    reason: str
+    ban_end_time: Optional[datetime.datetime] = None  # 临时封号需要设置结束时间
+
+class AppealCreate(BaseModel):
+    ban_record_id: int
+    appeal_reason: str
 
 # --- 世界模型 ---
 
@@ -297,6 +384,7 @@ class RedemptionCode(BaseModel):
     max_uses: int
     times_used: int
     expires_at: Optional[datetime.datetime] = None
+    created_at: datetime.datetime
     is_used: bool
     is_expired: bool
     model_config = ConfigDict(from_attributes=True)

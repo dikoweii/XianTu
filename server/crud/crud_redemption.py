@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from tortoise.transactions import atomic
 from tortoise.exceptions import DoesNotExist, IntegrityError
 
-from server.models import RedemptionCode, PlayerAccount
+from server.models import RedemptionCode, PlayerAccount, AdminAccount
 from server.schemas.schema import RedemptionCodeCreate
 
 @atomic()
@@ -89,26 +89,91 @@ async def use_code(code_str: str, user_id: int) -> Tuple[Optional[RedemptionCode
 async def get_creation_data_by_code(code: str) -> Optional[Dict[str, Any]]:
     """
     通过兑换码获取角色创建数据
+    根据兑换码类型，返回对应的游戏内容
     """
     code_obj, _ = await get_code_by_string(code)
 
-    if not code_obj or not code_obj.payload:
+    if not code_obj:
         return None
 
-    payload = code_obj.payload
+    code_type = code_obj.type
     creation_data = {}
     
-    code_type = code_obj.type
+    # 根据兑换码类型，从数据库获取对应的内容
+    if code_type == 'world':
+        # 获取随机或指定的世界
+        from server.models import World
+        worlds = await World.all().limit(1)
+        if worlds:
+            world = worlds[0]
+            creation_data['world_backgrounds'] = [{
+                'id': world.id,
+                'name': world.name,
+                'description': world.description,
+                'era': world.era
+            }]
+            
+    elif code_type == 'talent_tier':
+        # 获取高级天资
+        from server.models import TalentTier
+        talent_tiers = await TalentTier.filter(rarity__gte=4).limit(3)
+        creation_data['talent_tiers'] = [
+            {
+                'id': t.id,
+                'name': t.name,
+                'description': t.description,
+                'total_points': t.total_points,
+                'rarity': t.rarity,
+                'color': t.color
+            } for t in talent_tiers
+        ]
+        
+    elif code_type == 'origin':
+        # 获取稀有出身
+        from server.models import Origin
+        origins = await Origin.filter(rarity__gte=3).limit(5)
+        creation_data['origins'] = [
+            {
+                'id': o.id,
+                'name': o.name,
+                'description': o.description,
+                'rarity': o.rarity,
+                'talent_cost': o.talent_cost
+            } for o in origins
+        ]
+        
+    elif code_type == 'spirit_root':
+        # 获取高级灵根
+        from server.models import SpiritRoot
+        spirit_roots = await SpiritRoot.filter(base_multiplier__gte=1.5).limit(3)
+        creation_data['spirit_roots'] = [
+            {
+                'id': s.id,
+                'name': s.name,
+                'description': s.description,
+                'base_multiplier': s.base_multiplier,
+                'talent_cost': s.talent_cost
+            } for s in spirit_roots
+        ]
+        
+    elif code_type == 'talent':
+        # 获取稀有天赋
+        from server.models import Talent
+        talents = await Talent.filter(rarity__gte=4).limit(10)
+        creation_data['talents'] = [
+            {
+                'id': t.id,
+                'name': t.name,
+                'description': t.description,
+                'effects': t.effects,
+                'rarity': t.rarity,
+                'talent_cost': t.talent_cost
+            } for t in talents
+        ]
     
-    if code_type in ['world_background', 'mixed'] and isinstance(payload, dict):
-        if 'origins' in payload:
-            creation_data['origins'] = payload['origins']
-        if 'world_backgrounds' in payload:
-            creation_data['world_backgrounds'] = payload['world_backgrounds']
-    
-    if code_type in ['spirit_root', 'mixed'] and isinstance(payload, dict):
-        if 'spirit_roots' in payload:
-            creation_data['spirit_roots'] = payload['spirit_roots']
+    # 如果有自定义payload，则合并
+    if code_obj.payload and isinstance(code_obj.payload, dict):
+        creation_data.update(code_obj.payload)
     
     return creation_data if creation_data else None
 
@@ -125,24 +190,37 @@ async def get_all_codes(skip: int = 0, limit: int = 50) -> List[RedemptionCode]:
 @atomic()
 async def create_admin_redemption_code(
     code_type: str,
-    payload: Dict[str, Any],
+    payload: Optional[Dict[str, Any]] = None,
     max_uses: int = 1,
+    admin_id: Optional[int] = None
 ) -> Tuple[Optional[RedemptionCode], str]:
     """
     (管理员用) 创建新的兑换码
+    兑换码本身只是一个凭证，使用时根据类型提供对应的游戏内容
     """
     try:
+        admin_obj = None
+        if admin_id:
+            admin_obj = await AdminAccount.get_or_none(id=admin_id)
+            if not admin_obj:
+                return None, "指定的管理员不存在"
+
+        # 生成随机码
         code = str(uuid.uuid4()).replace('-', '').upper()[:12]
         
+        # 创建兑换码记录
         new_code = await RedemptionCode.create(
             code=code,
             type=code_type,
-            payload=payload,
-            max_uses=max_uses
+            payload=payload or {},  # payload可选，用于存储额外配置
+            max_uses=max_uses,
+            creator=admin_obj
         )
+        
         return new_code, "仙缘信物创生成功"
+        
     except IntegrityError:
-        # Retry if the generated code happens to collide, which is extremely unlikely.
-        return await create_admin_redemption_code(code_type, payload, max_uses)
+        # 如果生成的码碰撞了（极小概率），重试
+        return await create_admin_redemption_code(code_type, payload, max_uses, admin_id)
     except Exception as e:
         return None, f"创建兑换码失败: {e}"

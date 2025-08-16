@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from . import seed_worlds, seed_rules, seed_talent_tiers
+from . import seed_worlds, seed_rules, seed_talent_tiers, seed_realms
 
 async def initialize_database():
     """
@@ -8,8 +8,9 @@ async def initialize_database():
     print("---==[ 天道演化开始：检查并铭刻核心法则 (ORM) ]==---")
     
     await seed_worlds.seed()
-    await seed_rules.seed()
+    await seed_rules.seed() 
     await seed_talent_tiers.seed_talent_tiers()
+    await seed_realms.seed_realms()
 
     print("---==[ 天道演化完毕 (ORM) ]==---")
 

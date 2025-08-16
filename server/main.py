@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from tortoise import Tortoise
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -82,8 +83,13 @@ def read_root():
 
 # 挂载静态文件 - 管理后台（检查目录存在）
 static_admin_path = os.path.join(os.path.dirname(__file__), "static", "admin")
+
+@app.get("/admin", include_in_schema=False)
+async def admin_index():
+    return FileResponse(os.path.join(static_admin_path, "index.html"))
+
 if os.path.exists(static_admin_path):
-    app.mount("/admin", StaticFiles(directory=static_admin_path, html=True), name="admin")
+    app.mount("/admin/static", StaticFiles(directory=static_admin_path), name="admin-static")
 else:
     print(f"--- 静态文件目录不存在: {static_admin_path} ---")
 

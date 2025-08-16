@@ -426,10 +426,14 @@
         <div class="tabs-container">
             <nav class="tabs-nav">
                 <button class="tab-btn active" data-tab="players">玩家管理</button>
+                <button class="tab-btn" data-tab="characters">角色管理</button>
+                <button class="tab-btn" data-tab="ban_records">封号管理</button>
+                <button class="tab-btn" data-tab="appeals">申诉管理</button>
                 <button class="tab-btn" data-tab="admins">仙官管理</button>
                 <button class="tab-btn" data-tab="worlds">世界管理</button>
                 <button class="tab-btn" data-tab="origins">出身管理</button>
                 <button class="tab-btn" data-tab="talents">天赋管理</button>
+                <button class="tab-btn" data-tab="talent_tiers">天资管理</button>
                 <button class="tab-btn" data-tab="spirit_roots">灵根管理</button>
                 <button class="tab-btn" data-tab="codes">兑换码管理</button>
             </nav>
@@ -492,6 +496,54 @@
         </div>
     </div>
 
+    <!-- 封号模态框 -->
+    <div id="banModal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>🚫 封禁玩家</h3>
+            <form id="banForm">
+                <div class="form-group">
+                    <label class="form-label">玩家ID</label>
+                    <input type="number" id="banPlayerId" class="form-input" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">玩家名称</label>
+                    <input type="text" id="banPlayerName" class="form-input" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">封号类型</label>
+                    <select id="banType" class="form-select" required>
+                        <option value="temporary">临时封号</option>
+                        <option value="permanent">永久封号</option>
+                    </select>
+                </div>
+                <div class="form-group" id="banEndTimeGroup">
+                    <label class="form-label">封号结束时间</label>
+                    <input type="datetime-local" id="banEndTime" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">封号原因</label>
+                    <textarea id="banReason" class="form-input" rows="4" placeholder="请详细说明封号原因..." required></textarea>
+                </div>
+                <div id="banError" class="error-message hidden"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="hideBanModal()">取消</button>
+                    <button type="submit" class="btn btn-danger">确认封号</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 角色详情模态框 -->
+    <div id="characterModal" class="modal-overlay hidden">
+        <div class="modal" style="max-width: 800px;">
+            <h3 id="characterModalTitle">角色详情</h3>
+            <div id="characterDetails"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="hideCharacterModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // 全局变量
         let authToken = localStorage.getItem('admin_token');
@@ -535,6 +587,19 @@
             
             // 编辑表单
             document.getElementById('editForm').addEventListener('submit', handleEditSubmit);
+            
+            // 封号表单
+            document.getElementById('banForm').addEventListener('submit', handleBanSubmit);
+            
+            // 监听封号类型变化
+            document.getElementById('banType').addEventListener('change', function() {
+                const endTimeGroup = document.getElementById('banEndTimeGroup');
+                if (this.value === 'permanent') {
+                    endTimeGroup.style.display = 'none';
+                } else {
+                    endTimeGroup.style.display = 'block';
+                }
+            });
         });
 
         // 显示登录界面
@@ -650,13 +715,24 @@
             const canAdd = (tabName === 'admins' && currentUser?.role === 'super_admin') ||
                           (tabName === 'codes' && (currentUser?.role === 'super_admin' || currentUser?.role === 'admin')) ||
                           (tabName === 'talents' && currentUser?.role === 'super_admin') ||
+                          (tabName === 'talent_tiers' && currentUser?.role === 'super_admin') ||
                           (tabName === 'players' && currentUser?.role === 'super_admin') ||
                           (tabName === 'worlds' && currentUser?.role === 'super_admin') ||
                           (tabName === 'origins' && currentUser?.role === 'super_admin') ||
-                          (tabName === 'spirit_roots' && currentUser?.role === 'super_admin');
+                          (tabName === 'spirit_roots' && currentUser?.role === 'super_admin') ||
+                          (tabName === 'characters' && currentUser?.role === 'super_admin') ||
+                          (tabName === 'ban_records' && (currentUser?.role === 'super_admin' || currentUser?.role === 'admin'));
             
             if (canAdd) {
                 addBtn.classList.remove('hidden');
+                // 更新按钮文本
+                if (tabName === 'ban_records') {
+                    addBtn.textContent = '🚫 封禁玩家';
+                } else if (tabName === 'characters') {
+                    addBtn.textContent = '👤 创建角色';
+                } else {
+                    addBtn.textContent = '➕ 添加';
+                }
             } else {
                 addBtn.classList.add('hidden');
             }
@@ -687,22 +763,95 @@
                 switch(tabName) {
                     case 'players':
                         endpoint = '/users/';
-                        columns = ['ID', '用户名', '创建时间', '状态', '操作'];
+                        columns = ['ID', '用户名', '创建时间', '状态', '角色数量', '操作'];
                         formatRow = (item) => {
                             const canEdit = currentUser?.role === 'super_admin';
-                            const canDelete = currentUser?.role === 'super_admin';
+                            const canBan = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
                             let actions = '';
                             if (canEdit) {
                                 actions += `<button class="action-btn edit" onclick="editItem('${tabName}', ${item.id})">编辑</button>`;
                             }
-                            if (canDelete) {
-                                actions += `<button class="action-btn delete" onclick="deleteItem('${tabName}', ${item.id})">删除</button>`;
+                            if (canBan && !item.is_banned) {
+                                actions += `<button class="action-btn delete" onclick="banPlayer(${item.id}, '${item.user_name}')">封号</button>`;
+                            }
+                            if (canBan && item.is_banned) {
+                                actions += `<button class="action-btn" style="background: var(--success)" onclick="unbanPlayer(${item.id}, '${item.user_name}')">解封</button>`;
                             }
                             return [
                                 item.id,
                                 item.user_name,
                                 new Date(item.created_at).toLocaleString('zh-CN'),
                                 `<span class="status-badge ${item.is_banned ? 'status-banned' : 'status-active'}">${item.is_banned ? '已封禁' : '正常'}</span>`,
+                                item.character_count || 0,
+                                `<div class="action-buttons">${actions}</div>`
+                            ];
+                        };
+                        break;
+
+                    case 'characters':
+                        endpoint = '/admin/characters';
+                        columns = ['ID', '角色名', '玩家', '世界', '状态', '最后游戏时间', '操作'];
+                        formatRow = (item) => {
+                            const canView = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
+                            let actions = '';
+                            if (canView) {
+                                actions += `<button class="action-btn edit" onclick="viewCharacterDetails(${item.id})">详情</button>`;
+                                if (item.is_deleted) {
+                                    actions += `<button class="action-btn" style="background: var(--success)" onclick="restoreCharacter(${item.id})">恢复</button>`;
+                                } else {
+                                    actions += `<button class="action-btn delete" onclick="deleteCharacter(${item.id})">删除</button>`;
+                                }
+                            }
+                            return [
+                                item.id,
+                                item.character_name,
+                                item.player_name || `用户${item.player_id}`,
+                                item.world_name || `世界${item.world_id}`,
+                                `<span class="status-badge ${item.is_active ? 'status-active' : ''}">${item.is_active ? '激活' : ''}${item.is_deleted ? ' 已删除' : ''}</span>`,
+                                item.last_played ? new Date(item.last_played).toLocaleString('zh-CN') : '从未游戏',
+                                `<div class="action-buttons">${actions}</div>`
+                            ];
+                        };
+                        break;
+
+                    case 'ban_records':
+                        endpoint = '/ban/ban_records';
+                        columns = ['ID', '玩家', '封号类型', '原因', '开始时间', '结束时间', '状态', '操作'];
+                        formatRow = (item) => {
+                            const canManage = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
+                            let actions = '';
+                            if (canManage && item.is_active) {
+                                actions += `<button class="action-btn" style="background: var(--success)" onclick="liftBan(${item.id})">解封</button>`;
+                            }
+                            return [
+                                item.id,
+                                item.player_name || `用户${item.player_id}`,
+                                item.ban_type === 'permanent' ? '永久封号' : '临时封号',
+                                item.reason.length > 30 ? item.reason.substring(0, 30) + '...' : item.reason,
+                                new Date(item.ban_start_time).toLocaleString('zh-CN'),
+                                item.ban_end_time ? new Date(item.ban_end_time).toLocaleString('zh-CN') : '永久',
+                                `<span class="status-badge ${item.is_active ? 'status-banned' : 'status-active'}">${item.is_active ? '生效中' : '已失效'}</span>`,
+                                `<div class="action-buttons">${actions}</div>`
+                            ];
+                        };
+                        break;
+
+                    case 'appeals':
+                        endpoint = '/ban/ban_records?appeal_status=pending';
+                        columns = ['ID', '玩家', '封号原因', '申诉理由', '申诉时间', '操作'];
+                        formatRow = (item) => {
+                            const canHandle = currentUser?.role === 'super_admin' || currentUser?.role === 'admin';
+                            let actions = '';
+                            if (canHandle && item.appeal_status === 'pending') {
+                                actions += `<button class="action-btn" style="background: var(--success)" onclick="handleAppeal(${item.id}, true)">批准</button>`;
+                                actions += `<button class="action-btn delete" onclick="handleAppeal(${item.id}, false)">拒绝</button>`;
+                            }
+                            return [
+                                item.id,
+                                item.player_name || `用户${item.player_id}`,
+                                item.reason.length > 20 ? item.reason.substring(0, 20) + '...' : item.reason,
+                                item.appeal_reason ? (item.appeal_reason.length > 30 ? item.appeal_reason.substring(0, 30) + '...' : item.appeal_reason) : '-',
+                                item.appeal_time ? new Date(item.appeal_time).toLocaleString('zh-CN') : '-',
                                 `<div class="action-buttons">${actions}</div>`
                             ];
                         };
@@ -793,6 +942,28 @@
                                 item.name,
                                 item.rarity || '-',
                                 item.talent_cost || 0,
+                                item.description ? (item.description.length > 30 ? item.description.substring(0, 30) + '...' : item.description) : '-',
+                                `<div class="action-buttons">${actions}</div>`
+                            ];
+                        };
+                        break;
+
+                    case 'talent_tiers':
+                        endpoint = '/talent_tiers/';
+                        columns = ['ID', '天资名称', '稀有度', '总点数', '颜色', '描述', '操作'];
+                        formatRow = (item) => {
+                            const canManage = currentUser?.role === 'super_admin';
+                            let actions = '';
+                            if (canManage) {
+                                actions += `<button class="action-btn edit" onclick="editItem('${tabName}', ${item.id})">编辑</button>`;
+                                actions += `<button class="action-btn delete" onclick="deleteItem('${tabName}', ${item.id})">删除</button>`;
+                            }
+                            return [
+                                item.id,
+                                item.name,
+                                item.rarity || '-',
+                                item.total_points || 0,
+                                `<span style="color:${item.color}; font-weight: bold;">${item.color}</span>`,
                                 item.description ? (item.description.length > 30 ? item.description.substring(0, 30) + '...' : item.description) : '-',
                                 `<div class="action-buttons">${actions}</div>`
                             ];
@@ -996,6 +1167,9 @@
                     case 'talents':
                         endpoint = `/talents/${itemId}/`;
                         break;
+                    case 'talent_tiers':
+                        endpoint = `/talent_tiers/${itemId}/`;
+                        break;
                     case 'players':
                         endpoint = `/users/${itemId}/`;
                         break;
@@ -1088,6 +1262,31 @@
                         <div class="form-group">
                             <label class="form-label">花费点数</label>
                             <input type="number" name="talent_cost" class="form-input" value="${item.talent_cost || 1}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">描述</label>
+                            <textarea name="description" class="form-input" rows="3">${item.description || ''}</textarea>
+                        </div>
+                    `;
+                    break;
+                case 'talent_tiers':
+                    title = '编辑天资';
+                    fields = `
+                        <div class="form-group">
+                            <label class="form-label">天资名称</label>
+                            <input type="text" name="name" class="form-input" value="${item.name || ''}" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">稀有度</label>
+                            <input type="number" name="rarity" class="form-input" value="${item.rarity || 2}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">总点数</label>
+                            <input type="number" name="total_points" class="form-input" value="${item.total_points || 70}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">颜色</label>
+                            <input type="text" name="color" class="form-input" value="${item.color || 'white'}">
                         </div>
                         <div class="form-group">
                             <label class="form-label">描述</label>
@@ -1209,17 +1408,36 @@
                     }
                     break;
                 case 'codes':
-                    payload = {
-                        code: formData.get('code'),
-                        type: formData.get('type'),
-                        max_uses: parseInt(formData.get('max_uses')) || 1
-                    };
+                    if (currentEditItem.itemId) {
+                        // 编辑逻辑
+                        payload = {
+                            code: formData.get('code'),
+                            type: formData.get('type'),
+                            max_uses: parseInt(formData.get('max_uses')) || 1
+                        };
+                    } else {
+                        // 创建逻辑
+                        payload = {
+                            type: formData.get('type'),
+                            max_uses: parseInt(formData.get('max_uses')) || 1,
+                            payload: {} // 根据新后端，payload为空对象
+                        };
+                    }
                     break;
                 case 'talents':
                     payload = {
                         name: formData.get('name'),
                         rarity: parseInt(formData.get('rarity')) || 2,
                         talent_cost: parseInt(formData.get('talent_cost')) || 1,
+                        description: formData.get('description')
+                    };
+                    break;
+                case 'talent_tiers':
+                    payload = {
+                        name: formData.get('name'),
+                        rarity: parseInt(formData.get('rarity')) || 2,
+                        total_points: parseInt(formData.get('total_points')) || 70,
+                        color: formData.get('color'),
                         description: formData.get('description')
                     };
                     break;
@@ -1255,6 +1473,30 @@
                         description: formData.get('description')
                     };
                     break;
+                case 'characters':
+                    // 处理天赋ID列表
+                    const talentIdsStr = formData.get('selected_talent_ids');
+                    let selectedTalentIds = [];
+                    if (talentIdsStr && talentIdsStr.trim()) {
+                        selectedTalentIds = talentIdsStr.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+                    }
+                    
+                    payload = {
+                        character_name: formData.get('character_name'),
+                        player_id: parseInt(formData.get('player_id')),
+                        world_id: parseInt(formData.get('world_id')),
+                        talent_tier_id: parseInt(formData.get('talent_tier_id')),
+                        origin_id: formData.get('origin_id') ? parseInt(formData.get('origin_id')) : null,
+                        spirit_root_id: formData.get('spirit_root_id') ? parseInt(formData.get('spirit_root_id')) : null,
+                        selected_talent_ids: selectedTalentIds,
+                        root_bone: parseInt(formData.get('root_bone')),
+                        spirituality: parseInt(formData.get('spirituality')),
+                        comprehension: parseInt(formData.get('comprehension')),
+                        fortune: parseInt(formData.get('fortune')),
+                        charm: parseInt(formData.get('charm')),
+                        temperament: parseInt(formData.get('temperament'))
+                    };
+                    break;
                 default:
                     // Fallback for any other case
                     for (let [key, value] of formData.entries()) {
@@ -1274,6 +1516,7 @@
                         case 'admins': endpoint = `/admin/accounts/${currentEditItem.itemId}`; break;
                         case 'codes': endpoint = `/admin/codes/${currentEditItem.itemId}`; break;
                         case 'talents': endpoint = `/talents/${currentEditItem.itemId}`; break;
+                        case 'talent_tiers': endpoint = `/talent_tiers/${currentEditItem.itemId}`; break;
                         case 'players': endpoint = `/users/${currentEditItem.itemId}`; break;
                         case 'worlds': endpoint = `/worlds/${currentEditItem.itemId}`; break;
                         case 'origins': endpoint = `/origins/${currentEditItem.itemId}`; break;
@@ -1286,10 +1529,12 @@
                         case 'admins': endpoint = '/admin/accounts'; break;
                         case 'codes': endpoint = '/admin/codes'; break;
                         case 'talents': endpoint = '/talents'; break;
+                        case 'talent_tiers': endpoint = '/talent_tiers'; break;
                         case 'players': endpoint = '/register'; break;
                         case 'worlds': endpoint = '/worlds'; break;
                         case 'origins': endpoint = '/origins'; break;
                         case 'spirit_roots': endpoint = '/spirit_roots'; break;
+                        case 'characters': endpoint = '/admin/create'; break;
                     }
                 }
 
@@ -1331,6 +1576,9 @@
                         break;
                     case 'talents':
                         endpoint = `/talents/${itemId}`;
+                        break;
+                    case 'talent_tiers':
+                        endpoint = `/talent_tiers/${itemId}`;
                         break;
                     case 'players':
                         endpoint = `/users/${itemId}`;
@@ -1395,24 +1643,27 @@
                     `;
                     break;
                 case 'codes':
-                    title = '添加兑换码';
+                    title = '生成天机符箓 (兑换码)';
                     fields = `
                         <div class="form-group">
-                            <label class="form-label">兑换码（留空自动生成）</label>
-                            <input type="text" name="code" class="form-input">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">类型</label>
-                            <select name="type" class="form-select">
-                                <option value="world_background">世界背景</option>
-                                <option value="spirit_root">灵根</option>
-                                <option value="mixed">混合</option>
-                                <option value="custom">自定义</option>
+                            <label class="form-label">符箓类型</label>
+                            <select name="type" id="codeTypeSelect" class="form-select">
+                                <option value="world">🌍 世界通行证</option>
+                                <option value="talent_tier">⭐ 天资卷轴</option>
+                                <option value="origin">👑 出身令牌</option>
+                                <option value="spirit_root">🌟 灵根玉简</option>
+                                <option value="talent">💎 天赋秘籍</option>
                             </select>
+                            <small style="color: var(--text-light); display: block; margin-top: 5px;">
+                                使用时会根据类型自动提供对应的稀有内容
+                            </small>
                         </div>
                         <div class="form-group">
                             <label class="form-label">最大使用次数</label>
-                            <input type="number" name="max_uses" class="form-input" value="1" required>
+                            <input type="number" name="max_uses" class="form-input" value="1" min="1" required>
+                            <small style="color: var(--text-light); display: block; margin-top: 5px;">
+                                设置此兑换码可被使用的次数
+                            </small>
                         </div>
                     `;
                     break;
@@ -1430,6 +1681,31 @@
                         <div class="form-group">
                             <label class="form-label">花费点数</label>
                             <input type="number" name="talent_cost" class="form-input" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">描述</label>
+                            <textarea name="description" class="form-input" rows="3"></textarea>
+                        </div>
+                    `;
+                    break;
+                case 'talent_tiers':
+                    title = '添加新天资';
+                    fields = `
+                        <div class="form-group">
+                            <label class="form-label">天资名称</label>
+                            <input type="text" name="name" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">稀有度</label>
+                            <input type="number" name="rarity" class="form-input" value="2">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">总点数</label>
+                            <input type="number" name="total_points" class="form-input" value="70">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">颜色</label>
+                            <input type="text" name="color" class="form-input" value="#FFFFFF">
                         </div>
                         <div class="form-group">
                             <label class="form-label">描述</label>
@@ -1509,11 +1785,419 @@
                         </div>
                     `;
                     break;
+                case 'characters':
+                    title = '创建新角色';
+                    fields = `
+                        <div class="form-group">
+                            <label class="form-label">角色道号</label>
+                            <input type="text" name="character_name" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">所属玩家ID</label>
+                            <input type="number" name="player_id" class="form-input" min="1" required>
+                            <small style="color: var(--text-light); display: block; margin-top: 5px;">
+                                输入玩家的用户ID，该角色将归属于此玩家
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">世界ID</label>
+                            <input type="number" name="world_id" class="form-input" min="1" required>
+                            <small style="color: var(--text-light); display: block; margin-top: 5px;">
+                                选择角色所在的世界背景
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">天资等级ID</label>
+                            <input type="number" name="talent_tier_id" class="form-input" min="1" required>
+                            <small style="color: var(--text-light); display: block; margin-top: 5px;">
+                                选择角色的天资等级
+                            </small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">出身ID（可选）</label>
+                            <input type="number" name="origin_id" class="form-input" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">灵根ID（可选）</label>
+                            <input type="number" name="spirit_root_id" class="form-input" min="1">
+                        </div>
+                        <div class="form-group">
+                            <h4>先天六司配置</h4>
+                            <small style="color: var(--text-light); display: block; margin-bottom: 10px;">
+                                每项属性值范围：0-10点
+                            </small>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px;">
+                            <div class="form-group">
+                                <label class="form-label">根骨</label>
+                                <input type="number" name="root_bone" class="form-input" min="0" max="10" value="5" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">灵性</label>
+                                <input type="number" name="spirituality" class="form-input" min="0" max="10" value="5" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">悟性</label>
+                                <input type="number" name="comprehension" class="form-input" min="0" max="10" value="5" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">福缘</label>
+                                <input type="number" name="fortune" class="form-input" min="0" max="10" value="5" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">魅力</label>
+                                <input type="number" name="charm" class="form-input" min="0" max="10" value="5" required>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">心性</label>
+                                <input type="number" name="temperament" class="form-input" min="0" max="10" value="5" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">天赋ID列表（可选）</label>
+                            <input type="text" name="selected_talent_ids" class="form-input" placeholder="例如：1,2,3">
+                            <small style="color: var(--text-light); display: block; margin-top: 5px;">
+                                多个天赋ID用逗号分隔，留空表示不选择任何天赋
+                            </small>
+                        </div>
+                    `;
+                    break;
             }
 
             document.getElementById('editModalTitle').textContent = title;
             document.getElementById('editFormFields').innerHTML = fields;
         }
+
+        // 封号相关功能
+        function banPlayer(playerId, playerName) {
+            document.getElementById('banPlayerId').value = playerId;
+            document.getElementById('banPlayerName').value = playerName;
+            document.getElementById('banModal').classList.remove('hidden');
+            document.getElementById('banError').classList.add('hidden');
+            document.getElementById('banForm').reset();
+            // 设置默认结束时间为1天后
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('banEndTime').value = tomorrow.toISOString().slice(0, 16);
+        }
+
+        function hideBanModal() {
+            document.getElementById('banModal').classList.add('hidden');
+        }
+
+        async function handleBanSubmit(e) {
+            e.preventDefault();
+            const playerId = document.getElementById('banPlayerId').value;
+            const banType = document.getElementById('banType').value;
+            const banReason = document.getElementById('banReason').value;
+            let banEndTime = null;
+
+            if (banType === 'temporary') {
+                banEndTime = document.getElementById('banEndTime').value;
+                if (!banEndTime) {
+                    document.getElementById('banError').textContent = '临时封号必须设置结束时间';
+                    document.getElementById('banError').classList.remove('hidden');
+                    return;
+                }
+            }
+
+            try {
+                const payload = {
+                    player_id: parseInt(playerId),
+                    ban_type: banType,
+                    reason: banReason
+                };
+                
+                if (banEndTime) {
+                    payload.ban_end_time = new Date(banEndTime).toISOString();
+                }
+
+                const response = await fetch(`${API_BASE}/ban/ban_player`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    hideBanModal();
+                    refreshCurrentTab();
+                    alert('玩家封禁成功');
+                } else {
+                    const error = await response.json();
+                    document.getElementById('banError').textContent = error.detail || '封禁失败';
+                    document.getElementById('banError').classList.remove('hidden');
+                }
+            } catch (error) {
+                document.getElementById('banError').textContent = '网络错误';
+                document.getElementById('banError').classList.remove('hidden');
+            }
+        }
+
+        async function unbanPlayer(playerId, playerName) {
+            if (!confirm(`确定要解封玩家 "${playerName}" 吗？`)) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/ban/unban_player/${playerId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    refreshCurrentTab();
+                    alert('玩家解封成功');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || '解封失败');
+                }
+            } catch (error) {
+                alert('网络错误');
+            }
+        }
+
+        async function liftBan(banRecordId) {
+            if (!confirm('确定要解除此封号记录吗？')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/ban/unban_player/${banRecordId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    refreshCurrentTab();
+                    alert('封号已解除');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || '解封失败');
+                }
+            } catch (error) {
+                alert('网络错误');
+            }
+        }
+
+        async function handleAppeal(banRecordId, approve) {
+            const action = approve ? '批准' : '拒绝';
+            if (!confirm(`确定要${action}此申诉吗？`)) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/ban/handle_appeal/${banRecordId}?approve=${approve}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    refreshCurrentTab();
+                    alert(`申诉已${action}`);
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || `${action}申诉失败`);
+                }
+            } catch (error) {
+                alert('网络错误');
+            }
+        }
+
+        // 角色管理功能
+        async function viewCharacterDetails(characterId) {
+            try {
+                const response = await fetch(`${API_BASE}/characters/${characterId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const character = await response.json();
+                    
+                    // 获取游戏状态
+                    const stateResponse = await fetch(`${API_BASE}/characters/${characterId}/game_state`, {
+                        headers: {
+                            'Authorization': `Bearer ${authToken}`
+                        }
+                    });
+                    
+                    let gameState = null;
+                    if (stateResponse.ok) {
+                        gameState = await stateResponse.json();
+                    }
+
+                    displayCharacterDetails(character, gameState);
+                    document.getElementById('characterModal').classList.remove('hidden');
+                } else {
+                    alert('获取角色详情失败');
+                }
+            } catch (error) {
+                alert('网络错误');
+            }
+        }
+
+        function displayCharacterDetails(character, gameState) {
+            document.getElementById('characterModalTitle').textContent = `${character.character_name} - 详细信息`;
+            
+            let html = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+                    <div>
+                        <h4>基础信息</h4>
+                        <p><strong>角色ID:</strong> ${character.id}</p>
+                        <p><strong>角色名:</strong> ${character.character_name}</p>
+                        <p><strong>世界ID:</strong> ${character.world_id}</p>
+                        <p><strong>天资等级ID:</strong> ${character.talent_tier_id}</p>
+                        <p><strong>创建时间:</strong> ${new Date(character.created_at).toLocaleString('zh-CN')}</p>
+                        <p><strong>最后游戏:</strong> ${character.last_played ? new Date(character.last_played).toLocaleString('zh-CN') : '从未游戏'}</p>
+                        <p><strong>游戏时长:</strong> ${Math.floor(character.play_time_minutes / 60)}小时${character.play_time_minutes % 60}分钟</p>
+                        <p><strong>状态:</strong> ${character.is_active ? '激活' : '未激活'} ${character.is_deleted ? '(已删除)' : ''}</p>
+                    </div>
+                    <div>
+                        <h4>先天六司</h4>
+                        <p><strong>根骨:</strong> ${character.root_bone}</p>
+                        <p><strong>灵性:</strong> ${character.spirituality}</p>
+                        <p><strong>悟性:</strong> ${character.comprehension}</p>
+                        <p><strong>福缘:</strong> ${character.fortune}</p>
+                        <p><strong>魅力:</strong> ${character.charm}</p>
+                        <p><strong>心性:</strong> ${character.temperament}</p>
+                    </div>
+            `;
+            
+            if (gameState) {
+                html += `
+                    <div>
+                        <h4>游戏状态</h4>
+                        <p><strong>当前境界:</strong> ${gameState.current_realm_id || '凡人'}</p>
+                        <p><strong>修炼进度:</strong> ${gameState.cultivation_progress.toFixed(1)}%</p>
+                        <p><strong>修炼经验:</strong> ${gameState.cultivation_experience.toLocaleString()}</p>
+                        <p><strong>当前位置:</strong> ${gameState.current_location || '未知'}</p>
+                        <p><strong>灵石:</strong> ${gameState.spiritual_stones.toLocaleString()}</p>
+                        <p><strong>生命值:</strong> ${gameState.health_points}/100</p>
+                        <p><strong>最后同步:</strong> ${new Date(gameState.last_sync_time).toLocaleString('zh-CN')}</p>
+                        <p><strong>数据版本:</strong> ${gameState.version}</p>
+                    </div>
+                `;
+            }
+            
+            html += `</div>`;
+            document.getElementById('characterDetails').innerHTML = html;
+        }
+
+        function hideCharacterModal() {
+            document.getElementById('characterModal').classList.add('hidden');
+        }
+
+        async function deleteCharacter(characterId) {
+            if (!confirm('确定要删除此角色吗？')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/characters/${characterId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    refreshCurrentTab();
+                    alert('角色删除成功');
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || '删除失败');
+                }
+            } catch (error) {
+                alert('网络错误');
+            }
+        }
+
+        async function restoreCharacter(characterId) {
+            if (!confirm('确定要恢复此角色吗？')) return;
+
+            try {
+                // 这里需要添加恢复角色的API端点
+                alert('恢复功能待实现');
+            } catch (error) {
+                alert('网络错误');
+            }
+        }
+
+        // 扩展添加项目功能以支持封号
+        function showAddItemModal() {
+            if (currentTab === 'ban_records') {
+                // 显示封号界面，需要选择玩家
+                showBanPlayerSelection();
+            } else {
+                currentEditItem = { tabName: currentTab, itemId: null, data: {} };
+                renderAddForm(currentTab);
+                document.getElementById('editModal').classList.remove('hidden');
+            }
+        }
+
+        async function showBanPlayerSelection() {
+            try {
+                const response = await fetch(`${API_BASE}/users/`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    const players = await response.json();
+                    const normalPlayers = players.filter(p => !p.is_banned);
+                    
+                    if (normalPlayers.length === 0) {
+                        alert('没有可封禁的玩家');
+                        return;
+                    }
+
+                    // 创建选择界面
+                    let html = `
+                        <div class="form-group">
+                            <label class="form-label">选择要封禁的玩家</label>
+                            <select id="selectPlayerToBan" class="form-select" required>
+                                <option value="">请选择玩家</option>
+                    `;
+                    
+                    normalPlayers.forEach(player => {
+                        html += `<option value="${player.id}" data-name="${player.user_name}">${player.user_name} (ID: ${player.id})</option>`;
+                    });
+                    
+                    html += `
+                            </select>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" onclick="hideEditModal()">取消</button>
+                            <button type="button" class="btn btn-danger" onclick="proceedToBan()">下一步</button>
+                        </div>
+                    `;
+
+                    document.getElementById('editModalTitle').textContent = '选择要封禁的玩家';
+                    document.getElementById('editFormFields').innerHTML = html;
+                    document.getElementById('editModal').classList.remove('hidden');
+                }
+            } catch (error) {
+                alert('获取玩家列表失败');
+            }
+        }
+
+        function proceedToBan() {
+            const selectElement = document.getElementById('selectPlayerToBan');
+            const playerId = selectElement.value;
+            const playerName = selectElement.options[selectElement.selectedIndex].dataset.name;
+            
+            if (!playerId) {
+                alert('请选择要封禁的玩家');
+                return;
+            }
+
+            hideEditModal();
+            banPlayer(playerId, playerName);
+        }
+
     </script>
 </body>
 </html>

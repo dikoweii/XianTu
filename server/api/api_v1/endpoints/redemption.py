@@ -74,15 +74,14 @@ async def create_redemption_code(
 ):
     """
     管理员创建新的兑换码
+    支持直接创建游戏内容：世界、天资、出身、灵根、天赋
     """
-    # 为了安全，将创建者信息强制设为当前管理员
-    payload = request.payload
-    payload['creator'] = current_admin.username
-    
+    # 传递管理员ID，用于创建世界等需要创建者信息的内容
     new_code, message = await crud_redemption.create_admin_redemption_code(
         code_type=request.type,
-        payload=payload,
-        max_uses=request.max_uses
+        payload=request.payload,
+        max_uses=request.max_uses,
+        admin_id=current_admin.id
     )
 
     if not new_code:

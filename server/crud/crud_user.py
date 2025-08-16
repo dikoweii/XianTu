@@ -66,14 +66,6 @@ async def authenticate_admin(user_name: str, password: str) -> Optional[AdminAcc
         return None
     return admin
 
-async def authenticate_player(user_name: str, password: str):
-    """验证修者的道号与凭证。"""
-    player = await get_player_by_username(user_name)
-    if not player:
-        return None
-    if not auth.verify_password(password, player.password):
-        return None
-    return player
 
 async def create_player(player_data: schema.PlayerAccountCreate):
     """接引新修者。"""
@@ -88,7 +80,7 @@ async def create_player(player_data: schema.PlayerAccountCreate):
             user_name=player_data.user_name,
             password=hashed_password,
         )
-        return {"id": new_player.id, "user_name": new_player.user_name}, "道友接引成功！"
+        return new_player, "道友接引成功！"
     except Exception as e:
         print(f"!!! 创建修者账号失败: {e}")
         return None, f"未知错误: {e}"
