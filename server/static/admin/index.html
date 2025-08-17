@@ -773,6 +773,10 @@
                             if (canBan && item.is_banned) {
                                 actions += `<button class="action-btn" style="background: var(--success)" onclick="unbanPlayer(${item.id}, '${item.user_name}')">解封</button>`;
                             }
+                            // 只有超级管理员可以删除玩家
+                            if (currentUser?.role === 'super_admin') {
+                                actions += ` <button class="action-btn delete" onclick="deleteItem('${tabName}', ${item.id})">删除</button>`;
+                            }
                             return [
                                 item.id,
                                 item.user_name,

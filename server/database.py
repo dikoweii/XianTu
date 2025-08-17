@@ -57,6 +57,7 @@ TORTOISE_ORM = {
                 "sql_mode": "TRADITIONAL",
                 "connect_timeout": 120,
                 "echo": False,
+                "pool_recycle": 3600, # 添加连接池回收时间，防止因超时导致连接丢失
             }
         }
     },
