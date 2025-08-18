@@ -4,10 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from server.models import TalentTier, AdminAccount
 from server.schemas import schema
 from server.api.api_v1 import deps
+from server.utils.db_retry import db_retry
 
 router = APIRouter()
 
 @router.get("/", response_model=List[schema.TalentTier])
+@db_retry(max_retries=3, delay=1.0)
 async def get_talent_tiers():
     """
     获取所有天资等级
@@ -16,6 +18,7 @@ async def get_talent_tiers():
     return talent_tiers
 
 @router.get("/{tier_id}", response_model=schema.TalentTier)
+@db_retry(max_retries=3, delay=1.0)
 async def get_talent_tier(tier_id: int):
     """
     根据ID获取天资等级

@@ -54,10 +54,9 @@ TORTOISE_ORM = {
                 "database": DB_CONFIG['database'],
                 "charset": "utf8mb4",
                 "autocommit": True,
-                "sql_mode": "TRADITIONAL",
-                "connect_timeout": 120,
+                "connect_timeout": 30,
+                "pool_recycle": 3600,
                 "echo": False,
-                "pool_recycle": 3600, # 添加连接池回收时间，防止因超时导致连接丢失
             }
         }
     },

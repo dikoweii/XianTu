@@ -1495,7 +1495,7 @@
                         player_id: parseInt(formData.get('player_id')),
                         world_id: parseInt(formData.get('world_id')),
                         talent_tier_id: parseInt(formData.get('talent_tier_id')),
-                        birth_age: parseInt(formData.get('birth_age')) || 16,
+                        current_age: parseInt(formData.get('current_age')) || 16,
                         origin_id: formData.get('origin_id') ? parseInt(formData.get('origin_id')) : null,
                         spirit_root_id: formData.get('spirit_root_id') ? parseInt(formData.get('spirit_root_id')) : null,
                         selected_talent_ids: selectedTalentIds,
@@ -1832,10 +1832,10 @@
                             <input type="number" name="spirit_root_id" class="form-input" min="1">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">初始年龄</label>
-                            <input type="number" name="birth_age" class="form-input" min="0" max="18" value="16" required>
+                            <label class="form-label">当前年龄</label>
+                            <input type="number" name="current_age" class="form-input" min="0" max="18" value="16" required>
                             <small style="color: var(--text-light); display: block; margin-top: 5px;">
-                                设置角色的初始年龄（0-18岁）
+                                设置角色的当前年龄（0-18岁）
                             </small>
                         </div>
                         <div class="form-group">

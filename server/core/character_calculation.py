@@ -10,7 +10,7 @@ def calculate_core_attributes(
     fortune: int,  # 气运（原福缘）
     charm: int,
     temperament: int,
-    birth_age: int = 16  # 出生年龄，可选0-18
+    current_age: int = 16  # 当前年龄，可选0-18
 ) -> dict:
     """
     根据先天六司计算核心属性
@@ -22,7 +22,7 @@ def calculate_core_attributes(
         fortune: 气运 (0-10) 【原福缘】
         charm: 魅力 (0-10)
         temperament: 心性 (0-10)
-        birth_age: 出生年龄 (0-18)
+        current_age: 当前年龄 (0-18)
         
     Returns:
         dict: 包含所有核心属性的字典
@@ -54,8 +54,8 @@ def calculate_core_attributes(
     lifespan_per_bone = 10 # 每点根骨增加10年寿命
     max_lifespan = base_lifespan + (root_bone * lifespan_per_bone)
     
-    # 使用传入的出生年龄
-    current_age = birth_age
+    # 使用传入的当前年龄
+    current_age_val = current_age
 
     # 获取凡人境界ID
     mortal_realm_id = 1  # 默认为1，凡人境界
@@ -71,7 +71,7 @@ def calculate_core_attributes(
         "qi_blood": max_qi_blood,
         "spiritual_power": max_spiritual,
         "spirit_sense": max_spirit,
-        "current_age": birth_age, # 修正：确保使用传入的 birth_age
+        "current_age": current_age_val, # 使用传入的 current_age
         
         # 恢复速度基础值（将与时间挂钩）
         "qi_blood_recovery_rate": round(qi_blood_recovery_rate, 2),

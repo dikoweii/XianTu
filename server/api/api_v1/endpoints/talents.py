@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends
 from typing import List
 
 from server.schemas import schema
+from server.utils.db_retry import db_retry
 from server.crud import crud_rule
 from server.api.api_v1 import deps
 from server.models import AdminAccount
@@ -18,11 +19,13 @@ async def create_talent_endpoint(
     return await crud_rule.create_talent(talent)
 
 @router.get("/", response_model=List[schema.Talent], tags=["核心规则"])
+@db_retry(max_retries=3, delay=1.0)
 async def get_talents_endpoint():
     """获取所有核心天赋"""
     return await crud_rule.get_talents()
 
 @router.get("/{talent_id}", response_model=schema.Talent, tags=["核心规则"])
+@db_retry(max_retries=3, delay=1.0)
 async def get_talent_endpoint(talent_id: int):
     """根据ID获取核心天赋"""
     talent = await crud_rule.get_talent(talent_id)

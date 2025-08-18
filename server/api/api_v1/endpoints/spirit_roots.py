@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException
 from typing import List
 
 from server.schemas import schema
+from server.utils.db_retry import db_retry
 from server.crud import crud_rule
 
 router = APIRouter()
@@ -13,11 +14,13 @@ async def create_spirit_root_endpoint(spirit_root: schema.SpiritRootCreate):
     return await crud_rule.create_spirit_root(spirit_root)
 
 @router.get("/", response_model=List[schema.SpiritRoot], tags=["核心规则"])
+@db_retry(max_retries=3, delay=1.0)
 async def get_spirit_roots_endpoint():
     """获取所有核心灵根"""
     return await crud_rule.get_spirit_roots()
 
 @router.get("/{spirit_root_id}", response_model=schema.SpiritRoot, tags=["核心规则"])
+@db_retry(max_retries=3, delay=1.0)
 async def get_spirit_root_endpoint(spirit_root_id: int):
     """根据ID获取核心灵根"""
     spirit_root = await crud_rule.get_spirit_root(spirit_root_id)

@@ -80,7 +80,7 @@ class CharacterBaseCreate(BaseModel):
     player_id: Optional[int] = None  # 管理员创建时需要，普通用户创建时自动设置
     world_id: int
     talent_tier_id: int
-    birth_age: int = 16  # 出生年龄，默认16岁
+    current_age: int = 16  # 当前年龄，默认16岁
     # 先天六司
     root_bone: int
     spirituality: int

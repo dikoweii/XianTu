@@ -3,15 +3,18 @@ from typing import List
 from fastapi import APIRouter, HTTPException
 from server.schemas.schema import Origin, OriginCreate, OriginUpdate
 from server.crud import crud_origins
+from server.utils.db_retry import db_retry
 
 router = APIRouter()
 
 @router.post("/", response_model=Origin, tags=["核心规则"])
+@db_retry(max_retries=3, delay=1.0)
 async def create_origin_endpoint(origin: OriginCreate):
     """创建新出身"""
     return await crud_origins.create_origin(origin)
 
 @router.get("/", response_model=List[Origin], tags=["核心规则"])
+@db_retry(max_retries=3, delay=1.0)
 async def get_origins_endpoint():
     """获取所有出身"""
     return await crud_origins.get_origins()

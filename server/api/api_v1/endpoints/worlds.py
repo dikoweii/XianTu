@@ -3,10 +3,12 @@ from typing import List
 
 from server.schemas import schema
 from server.crud import crud_world
+from server.utils.db_retry import db_retry
 
 router = APIRouter()
 
 @router.get("/", response_model=List[schema.World], tags=["世界体系"])
+@db_retry(max_retries=3, delay=1.0)
 async def list_worlds():
     """
     获取所有已创建的世界列表。
