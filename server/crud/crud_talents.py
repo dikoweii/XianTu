@@ -22,11 +22,11 @@ async def create_talent(talent: TalentCreate) -> Tuple[Optional[TalentModel], st
 
 async def get_talent(talent_id: int) -> Optional[TalentModel]:
     """根据ID获取天赋"""
-    return await TalentModel.get_or_none(id=talent_id)
+    return await TalentModel.get_or_none(id=talent_id).prefetch_related('tier')
 
 async def get_talents() -> List[TalentModel]:
     """获取所有天赋"""
-    return await TalentModel.all().order_by('name')
+    return await TalentModel.all().prefetch_related('tier').order_by('name')
 
 async def update_talent(talent_id: int, talent_data: TalentUpdate) -> Tuple[Optional[TalentModel], str]:
     """更新天赋"""
