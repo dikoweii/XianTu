@@ -59,6 +59,19 @@ async def query_user(
     
     return db_user
 
+@router.get('/{user_id}', response_model=schema.PlayerAccount, tags=["用户管理"])
+async def get_user_by_id(
+    user_id: int,
+    current_admin: AdminAccount = Depends(deps.get_admin_or_super_admin)
+):
+    """
+    根据用户ID获取用户信息（管理员权限）
+    """
+    user = await crud_user.get_player_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    return user
+
 @router.put('/{user_id}', response_model=schema.PlayerAccount, tags=["用户管理"])
 async def update_user(
     user_id: int,
