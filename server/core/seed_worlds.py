@@ -212,12 +212,21 @@ async def seed():
     admin_user = await AdminAccount.get_or_none(user_name="admin")
     if not admin_user:
         # 如果admin不存在，检查是否有super_admin
-        admin_user = await AdminAccount.filter(role="super_admin").first()
-        if not admin_user:
+        existing_admins = await AdminAccount.filter(role="super_admin")
+        if len(existing_admins) > 1:
+            # 如果有多个super_admin，删除多余的，只保留第一个
+            print(f"--- [Worlds] 警告: 发现 {len(existing_admins)} 个super_admin，正在清理多余的... ---")
+            for admin in existing_admins[1:]:
+                await admin.delete()
+            admin_user = existing_admins[0]
+            print("--- [Worlds] super_admin清理完成，现在只保留一个。 ---")
+        elif len(existing_admins) == 1:
+            admin_user = existing_admins[0]
+        else:
             # 如果没有任何超级管理员，创建一个
             admin_user = await AdminAccount.create(
                 user_name="admin",
-                password="hashed_password_placeholder", 
+                password="hashed_password_placeholder",
                 role="super_admin"
             )
 

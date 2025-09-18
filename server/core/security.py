@@ -3,10 +3,21 @@ from typing import Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
+from passlib.exc import UnknownHashError
 
 # --- 密码哈希 ---
 # 使用 bcrypt 算法，这是目前非常安全的选择
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Accept multiple legacy schemes to smooth migrations
+# New hashes will still be generated with bcrypt, but verification can
+# recognize common historical formats to avoid 500s on login.
+pwd_context = CryptContext(
+    schemes=[
+        "bcrypt",          # current default
+        "pbkdf2_sha256",  # common in older FastAPI templates
+        "sha256_crypt",   # sometimes used historically
+    ],
+    deprecated="auto",
+)
 
 # --- JWT 令牌设置 ---
 # !! 警告: 这个密钥在生产环境中必须替换为一个真正的、随机生成的、保密的字符串 !!
@@ -16,8 +27,17 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080 # 令牌有效期 (7天)
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """验证明文密码与哈希密码是否匹配"""
-    return pwd_context.verify(plain_password, hashed_password)
+    """验证明文密码与哈希密码是否匹配。若哈希不可识别，返回 False 而非抛错。"""
+    if not hashed_password:
+        return False
+    try:
+        return pwd_context.verify(plain_password, hashed_password)
+    except UnknownHashError:
+        # Stored password isn't a recognized hash (e.g., legacy/plaintext)
+        return False
+    except Exception:
+        # Any other verification error should not 500 the API
+        return False
 
 def get_password_hash(password: str) -> str:
     """生成密码的哈希值"""

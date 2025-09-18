@@ -35,7 +35,7 @@ async def update_player(player_id: int, player_data: schema.PlayerAccountUpdate)
 
     try:
         if "password" in update_data and update_data["password"]:
-            player.password = auth.get_password_hash(update_data["password"])
+            player.password = security.get_password_hash(update_data["password"])
         if "user_name" in update_data and update_data["user_name"]:
             player.user_name = update_data["user_name"]
         
@@ -60,7 +60,7 @@ async def change_password(player_id: int, new_password: str) -> Tuple[bool, str]
     if not player:
         return False, "未找到指定的修者。"
     try:
-        player.password = auth.get_password_hash(new_password)
+        player.password = security.get_password_hash(new_password)
         await player.save()
         return True, "密码修改成功。"
     except Exception as e:
@@ -84,7 +84,7 @@ async def create_player(player_data: schema.PlayerAccountCreate):
     if existing_player:
         return None, "此道号已被他人占用，请另择佳名。"
 
-    hashed_password = auth.get_password_hash(player_data.password)
+    hashed_password = security.get_password_hash(player_data.password)
     
     try:
         new_player = await PlayerAccount.create(
@@ -111,7 +111,7 @@ async def ensure_admin_account_exists():
         hashed_password = auth.get_password_hash("admin") # 默认密码为 admin
         await AdminAccount.create(
             user_name="admin",
-            password=hashed_password,
+            password=security.get_password_hash("admin"),
             role="super_admin" # 初始账号为超级管理员
         )
         print("--- 天帝册封完毕。默认道号：admin, 凭证：admin ---")
