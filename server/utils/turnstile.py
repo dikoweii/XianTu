@@ -4,7 +4,7 @@ from typing import Any
 
 import httpx
 
-from server.core.config import settings
+from server.utils.system_config import get_turnstile_config
 
 
 async def verify_turnstile(
@@ -17,18 +17,20 @@ async def verify_turnstile(
 
     Returns (success, error_codes).
     """
-    if not settings.TURNSTILE_SECRET_KEY:
+    config = await get_turnstile_config()
+
+    if not config["turnstile_secret_key"]:
         return False, ["missing-secret"]
 
     data: dict[str, Any] = {
-        "secret": settings.TURNSTILE_SECRET_KEY,
+        "secret": config["turnstile_secret_key"],
         "response": token,
     }
     if remote_ip:
         data["remoteip"] = remote_ip
 
     async with httpx.AsyncClient(timeout=8.0) as client:
-        resp = await client.post(settings.TURNSTILE_VERIFY_URL, data=data)
+        resp = await client.post(config["turnstile_verify_url"], data=data)
         resp.raise_for_status()
         payload = resp.json()
 

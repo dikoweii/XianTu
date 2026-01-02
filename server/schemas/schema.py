@@ -35,6 +35,35 @@ class PlayerAccountCreate(BaseModel):
 class PlayerAccountCreateWithTurnstile(PlayerAccountCreate):
     turnstile_token: Optional[str] = None
 
+class PlayerAccountCreateWithEmail(PlayerAccountCreate):
+    """使用邮箱验证码注册"""
+    email: str
+    email_code: str
+
+class PlayerAccountCreateFull(PlayerAccountCreate):
+    """完整注册请求（支持多种验证方式）"""
+    turnstile_token: Optional[str] = None
+    email: Optional[str] = None
+    email_code: Optional[str] = None
+
+class SendEmailCodeRequest(BaseModel):
+    """发送邮箱验证码请求"""
+    email: str
+    purpose: str = "register"
+
+class SendEmailCodeResponse(BaseModel):
+    """发送邮箱验证码响应"""
+    success: bool
+    message: str
+
+class SecuritySettingsResponse(BaseModel):
+    """安全设置响应"""
+    turnstile_enabled: bool
+    email_verification_enabled: bool
+    rate_limit_enabled: bool
+    rate_limit_max: int
+    rate_limit_window: int
+
 class PlayerAccountUpdate(BaseModel):
     user_name: Optional[str] = None
     password: Optional[str] = None
@@ -283,6 +312,52 @@ class SystemConfigUpdate(BaseModel):
 
 class SystemConfig(SystemConfigBase):
    model_config = ConfigDict(from_attributes=True)
+
+
+# --- 系统安全配置（后台管理用） ---
+
+class TurnstileConfigUpdate(BaseModel):
+    """Turnstile 配置更新"""
+    turnstile_enabled: Optional[bool] = None
+    turnstile_secret_key: Optional[str] = None
+    turnstile_verify_url: Optional[str] = None
+
+class EmailConfigUpdate(BaseModel):
+    """邮箱配置更新"""
+    email_verification_enabled: Optional[bool] = None
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = None
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None
+    smtp_from_email: Optional[str] = None
+    smtp_from_name: Optional[str] = None
+    email_code_expire_minutes: Optional[int] = None
+
+class RateLimitConfigUpdate(BaseModel):
+    """限流配置更新"""
+    register_rate_limit_enabled: Optional[bool] = None
+    register_rate_limit_max: Optional[int] = None
+    register_rate_limit_window: Optional[int] = None
+
+class AllSecurityConfigResponse(BaseModel):
+    """所有安全配置响应"""
+    # Turnstile
+    turnstile_enabled: bool
+    turnstile_secret_key: Optional[str] = None
+    turnstile_verify_url: str
+    # 邮箱
+    email_verification_enabled: bool
+    smtp_host: str
+    smtp_port: int
+    smtp_user: Optional[str] = None
+    smtp_password: Optional[str] = None  # 注意：返回时应该脱敏
+    smtp_from_email: Optional[str] = None
+    smtp_from_name: str
+    email_code_expire_minutes: int
+    # 限流
+    register_rate_limit_enabled: bool
+    register_rate_limit_max: int
+    register_rate_limit_window: int
 
 
 # --- 创意工坊 ---

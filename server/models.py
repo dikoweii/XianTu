@@ -230,3 +230,32 @@ class WorkshopItem(Model):
 
     class Meta:
         table = "workshop_items"
+
+
+# --- 邮箱验证码 ---
+
+class EmailVerificationCode(Model):
+    """邮箱验证码"""
+    id = fields.IntField(pk=True)
+    email = fields.CharField(max_length=255, description="邮箱地址")
+    code = fields.CharField(max_length=10, description="验证码")
+    purpose = fields.CharField(max_length=32, default="register", description="用途：register/reset_password")
+    created_at = fields.DatetimeField(auto_now_add=True, description="创建时间")
+    expires_at = fields.DatetimeField(description="过期时间")
+    is_used = fields.BooleanField(default=False, description="是否已使用")
+
+    class Meta:
+        table = "email_verification_codes"
+
+
+# --- IP限流记录 ---
+
+class IPRateLimitRecord(Model):
+    """IP限流记录"""
+    id = fields.IntField(pk=True)
+    ip_address = fields.CharField(max_length=64, description="IP地址")
+    action = fields.CharField(max_length=32, default="register", description="操作类型")
+    created_at = fields.DatetimeField(auto_now_add=True, description="记录时间")
+
+    class Meta:
+        table = "ip_rate_limit_records"
