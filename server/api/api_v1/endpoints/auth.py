@@ -70,7 +70,7 @@ async def _require_turnstile(request: Request, token: str | None) -> None:
     raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
 
-async def _check_rate_limit(request: Request) -> None:
+async def _check_rate_limit(request: Request, action: str = "register") -> None:
     """IP限流检查"""
     config = await get_rate_limit_config()
 
@@ -78,7 +78,7 @@ async def _check_rate_limit(request: Request) -> None:
         return
 
     ip = _get_client_ip(request) or "unknown"
-    allowed, remaining = await check_rate_limit(ip, "register")
+    allowed, remaining = await check_rate_limit(ip, action)
 
     if not allowed:
         window_minutes = config["register_rate_limit_window"] // 60
@@ -127,7 +127,7 @@ async def send_email_code(request: Request, data: schema.SendEmailCodeRequest):
         )
 
     # IP限流检查
-    await _check_rate_limit(request)
+    await _check_rate_limit(request, "send_email_code")
 
     # 验证邮箱格式
     import re
@@ -189,7 +189,7 @@ async def register_player(request: Request, player_in: schema.PlayerAccountCreat
     3. 无验证（如果都未启用）
     """
     # IP限流检查
-    await _check_rate_limit(request)
+    await _check_rate_limit(request, "register")
 
     # 获取配置
     turnstile_config = await get_turnstile_config()

@@ -113,28 +113,43 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
 
     try:
         if smtp_port == 465:
-            # SSL
-            with smtplib.SMTP_SSL(smtp_host, smtp_port) as server:
+            # SSL 直连
+            import ssl
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30) as server:
                 server.login(smtp_user, smtp_password)
-                server.sendmail(
-                    from_email,
-                    [email],
-                    msg.as_string()
-                )
-        else:
-            # TLS
-            with smtplib.SMTP(smtp_host, smtp_port) as server:
+                server.sendmail(from_email, [email], msg.as_string())
+        elif smtp_port == 587:
+            # STARTTLS
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                server.ehlo()
                 server.starttls()
+                server.ehlo()
                 server.login(smtp_user, smtp_password)
-                server.sendmail(
-                    from_email,
-                    [email],
-                    msg.as_string()
-                )
+                server.sendmail(from_email, [email], msg.as_string())
+        else:
+            # 其他端口尝试 STARTTLS
+            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                try:
+                    server.starttls()
+                except smtplib.SMTPNotSupportedError:
+                    pass  # 不支持 TLS，继续
+                server.login(smtp_user, smtp_password)
+                server.sendmail(from_email, [email], msg.as_string())
+
         print(f"[邮件] 验证码已发送到 {email}")
         return True
+    except smtplib.SMTPAuthenticationError as e:
+        print(f"[邮件] SMTP认证失败，请检查用户名和密码（授权码）: {e}")
+        return False
+    except smtplib.SMTPConnectError as e:
+        print(f"[邮件] SMTP连接失败，请检查服务器地址和端口: {e}")
+        return False
+    except TimeoutError as e:
+        print(f"[邮件] SMTP连接超时，请检查网络或服务器地址: {e}")
+        return False
     except Exception as e:
-        print(f"[邮件] 发送失败: {e}")
+        print(f"[邮件] 发送失败: {type(e).__name__}: {e}")
         return False
 
 
