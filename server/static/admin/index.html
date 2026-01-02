@@ -1059,7 +1059,10 @@
                            let actions = '';
                            if (canManage) {
                                actions += `<button class="action-btn" onclick="toggleWorkshopPublic(${item.id}, ${item.is_public ? 'false' : 'true'})">${item.is_public ? '隐藏' : '公开'}</button>`;
-                               actions += ` <button class="action-btn delete" onclick="toggleWorkshopDeleted(${item.id}, ${item.is_deleted ? 'false' : 'true'})">${item.is_deleted ? '恢复' : '删除'}</button>`;
+                               if (item.is_deleted) {
+                                   actions += ` <button class="action-btn" onclick="toggleWorkshopDeleted(${item.id}, false)">恢复</button>`;
+                               }
+                               actions += ` <button class="action-btn delete" onclick="deleteWorkshopItemAdmin(${item.id})">${item.is_deleted ? '彻底删除' : '删除'}</button>`;
                            }
                            const title = item.title && item.title.length > 40 ? item.title.substring(0, 40) + '...' : (item.title || '-');
                            return [
@@ -2383,6 +2386,27 @@
               alert('网络错误');
           }
       }
+
+        async function deleteWorkshopItemAdmin(itemId) {
+            if (!confirm('???????????????????')) return;
+            try {
+                const response = await fetch(`${API_BASE}/admin/workshop/items/${itemId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    refreshCurrentTab();
+                } else {
+                    const error = await response.json();
+                    alert(error.detail || '????');
+                }
+            } catch (error) {
+                alert('????');
+            }
+        }
     </script>
   </body>
 </html>

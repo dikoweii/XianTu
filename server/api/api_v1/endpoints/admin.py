@@ -260,3 +260,18 @@ async def set_workshop_item_visibility(
 
     await item.save()
     return {"message": "已更新"}
+
+
+@router.delete("/workshop/items/{item_id}", tags=["创意工坊"])
+async def delete_workshop_item_admin(
+    item_id: int,
+    current_admin: AdminAccount = Depends(deps.get_admin_or_super_admin),
+):
+    from server.models import WorkshopItem
+
+    item = await WorkshopItem.get_or_none(id=item_id)
+    if not item:
+        raise HTTPException(status_code=404, detail="工坊内容不存在")
+
+    await item.delete()
+    return {"message": "已彻底删除"}
