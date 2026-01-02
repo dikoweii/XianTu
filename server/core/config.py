@@ -9,6 +9,7 @@ class Settings(BaseSettings):
         env_file=str(_env_file),
         env_file_encoding="utf-8",
         case_sensitive=True,
+        extra="ignore",
     )
 
     # Environment
@@ -24,5 +25,8 @@ class Settings(BaseSettings):
     TURNSTILE_ENABLED: bool = True
     TURNSTILE_SECRET_KEY: str | None = None
     TURNSTILE_VERIFY_URL: str = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+    # Database (optional, used by server/database.py via env)
+    DDCT_DB_URL: str | None = None
 
 settings = Settings()
