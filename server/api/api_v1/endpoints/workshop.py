@@ -83,6 +83,38 @@ async def list_workshop_items(
     return schema.WorkshopItemsResponse(items=items, total=total, page=page, page_size=page_size)
 
 
+@router.get("/my-items", response_model=schema.WorkshopItemsResponse, tags=["创意工坊"])
+async def list_my_workshop_items(
+    item_type: Optional[str] = Query(default=None, alias="type"),
+    q: Optional[str] = Query(default=None, description="搜索标题/作者/说明"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=50),
+    current_user: PlayerAccount = Depends(deps.get_current_active_user),
+):
+    qs = WorkshopItem.filter(is_deleted=False, author_id=current_user.id).prefetch_related("author")
+
+    if item_type:
+        if item_type not in ALLOWED_ITEM_TYPES:
+            raise HTTPException(status_code=400, detail=f"不支持的内容类型: {item_type}")
+        qs = qs.filter(type=item_type)
+
+    if q:
+        keyword = q.strip()
+        if keyword:
+            qs = qs.filter(
+                Q(title__icontains=keyword)
+                | Q(description__icontains=keyword)
+                | Q(author__user_name__icontains=keyword)
+            )
+
+    total = await qs.count()
+    offset = (page - 1) * page_size
+    rows = await qs.order_by("-created_at").offset(offset).limit(page_size)
+
+    items = [_to_out(row, row.author.user_name if row.author else "未知") for row in rows]
+    return schema.WorkshopItemsResponse(items=items, total=total, page=page, page_size=page_size)
+
+
 @router.get("/items/{item_id}", response_model=schema.WorkshopItemOut, tags=["创意工坊"])
 async def get_workshop_item(item_id: int):
     item = await WorkshopItem.get_or_none(id=item_id, is_deleted=False, is_public=True).prefetch_related("author")
@@ -184,6 +216,5 @@ async def delete_workshop_item(
     if item.author_id != current_user.id:
         raise HTTPException(status_code=403, detail="无权删除此内容")
 
-    item.is_deleted = True
-    await item.save()
-    return {"message": "已删除"}
+    await item.delete()
+    return {"message": "已删除（彻底移除）"}
