@@ -108,6 +108,8 @@ async def update_turnstile_config(config_in: TurnstileConfigUpdate):
     updates = {}
     if config_in.turnstile_enabled is not None:
         updates["turnstile_enabled"] = config_in.turnstile_enabled
+    if config_in.turnstile_site_key is not None:
+        updates["turnstile_site_key"] = config_in.turnstile_site_key
     if config_in.turnstile_secret_key is not None:
         updates["turnstile_secret_key"] = config_in.turnstile_secret_key
     if config_in.turnstile_verify_url is not None:

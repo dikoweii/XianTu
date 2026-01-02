@@ -5,6 +5,19 @@
       let currentEditItem = null
       const API_BASE = '/api/v1'
 
+      async function readResponsePayload(response) {
+        const contentType = response.headers.get('content-type') || ''
+        const text = await response.text()
+        if (contentType.includes('application/json')) {
+          try {
+            return { data: JSON.parse(text), text }
+          } catch (error) {
+            return { data: null, text }
+          }
+        }
+        return { data: null, text }
+      }
+
       // DOM 元素
       const loginContainer = document.getElementById('loginContainer')
       const mainContainer = document.getElementById('mainContainer')
@@ -1850,7 +1863,12 @@
                   </label>
                 </div>
                 <div class="form-group">
-                  <label class="form-label">Secret Key</label>
+                  <label class="form-label">Site Key（前端公钥）</label>
+                  <input type="text" id="turnstileSiteKey" class="form-input"
+                    value="${securityConfig.turnstile_site_key || ''}" placeholder="0x开头的公钥，用于前端显示验证组件">
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Secret Key（后端私钥）</label>
                   <input type="password" id="turnstileSecretKey" class="form-input"
                     value="${securityConfig.turnstile_secret_key || ''}" placeholder="输入新密钥以更新（留空不修改）">
                 </div>
@@ -1966,6 +1984,11 @@
 
         data.turnstile_enabled = document.getElementById('turnstileEnabled').checked
 
+        const siteKey = document.getElementById('turnstileSiteKey').value
+        if (siteKey) {
+          data.turnstile_site_key = siteKey
+        }
+
         const secretKey = document.getElementById('turnstileSecretKey').value
         // 只有当输入框值不是脱敏后的值时才更新
         if (secretKey && !secretKey.includes('*')) {
@@ -2044,15 +2067,16 @@
             body: JSON.stringify(data),
           })
 
+          const payload = await readResponsePayload(response)
           if (response.ok) {
-            const result = await response.json()
-            saveStatus.textContent = `✅ ${result.message}`
+            const message = payload.data?.message || payload.text || '????'
+            saveStatus.textContent = `? ${message}`
             saveStatus.className = 'status-badge status-active'
-            // 刷新页面以显示最新数据
+            // ???????????
             setTimeout(() => renderSystemSettings(), 1500)
           } else {
-            const error = await response.json()
-            saveStatus.textContent = `❌ 保存失败: ${error.detail || '未知错误'}`
+            const detail = payload.data?.detail || payload.text || '????'
+            saveStatus.textContent = `? ????: ${detail}`
             saveStatus.className = 'error-message'
           }
           saveStatus.classList.remove('hidden')
@@ -2090,12 +2114,13 @@
             body: JSON.stringify({ value: newVersion }),
           })
 
+          const payload = await readResponsePayload(response)
           if (response.ok) {
-            saveStatus.textContent = '✅ 保存成功！'
+            saveStatus.textContent = '? ?????'
             saveStatus.className = 'status-badge status-active'
           } else {
-            const error = await response.json()
-            saveStatus.textContent = `❌ 保存失败: ${error.detail || '未知错误'}`
+            const detail = payload.data?.detail || payload.text || '????'
+            saveStatus.textContent = `? ????: ${detail}`
             saveStatus.className = 'error-message'
           }
           saveStatus.classList.remove('hidden')

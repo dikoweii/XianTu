@@ -106,6 +106,7 @@ async def get_security_settings():
 
     return {
         "turnstile_enabled": turnstile_config["turnstile_enabled"],
+        "turnstile_site_key": turnstile_config["turnstile_site_key"],
         "email_verification_enabled": email_enabled,
         "rate_limit_enabled": rate_limit_config["register_rate_limit_enabled"],
         "rate_limit_max": rate_limit_config["register_rate_limit_max"],

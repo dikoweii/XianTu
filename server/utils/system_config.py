@@ -1,10 +1,14 @@
 """
 系统配置服务层
 
+配置优先级：数据库 > 环境变量 > 默认值
+
 将可动态调整的配置存储在数据库中，支持后台管理界面修改。
 这些配置不需要重启服务即可生效。
+环境变量作为初始值，首次读取时如果数据库没有会使用环境变量的值。
 """
 
+import os
 from typing import Any
 from server.models import SystemConfig
 
@@ -13,7 +17,8 @@ from server.models import SystemConfig
 DEFAULT_CONFIGS = {
     # Cloudflare Turnstile 人机验证
     "turnstile_enabled": True,
-    "turnstile_secret_key": None,
+    "turnstile_site_key": None,  # 前端用的公钥
+    "turnstile_secret_key": None,  # 后端用的私钥
     "turnstile_verify_url": "https://challenges.cloudflare.com/turnstile/v0/siteverify",
 
     # 邮箱验证
@@ -32,13 +37,81 @@ DEFAULT_CONFIGS = {
     "register_rate_limit_window": 3600,
 }
 
+# 环境变量映射（小写配置键 -> 大写环境变量名）
+ENV_VAR_MAPPING = {
+    "turnstile_enabled": "TURNSTILE_ENABLED",
+    "turnstile_site_key": "TURNSTILE_SITE_KEY",
+    "turnstile_secret_key": "TURNSTILE_SECRET_KEY",
+    "turnstile_verify_url": "TURNSTILE_VERIFY_URL",
+    "email_verification_enabled": "EMAIL_VERIFICATION_ENABLED",
+    "smtp_host": "SMTP_HOST",
+    "smtp_port": "SMTP_PORT",
+    "smtp_user": "SMTP_USER",
+    "smtp_password": "SMTP_PASSWORD",
+    "smtp_from_email": "SMTP_FROM_EMAIL",
+    "smtp_from_name": "SMTP_FROM_NAME",
+    "email_code_expire_minutes": "EMAIL_CODE_EXPIRE_MINUTES",
+    "register_rate_limit_enabled": "REGISTER_RATE_LIMIT_ENABLED",
+    "register_rate_limit_max": "REGISTER_RATE_LIMIT_MAX",
+    "register_rate_limit_window": "REGISTER_RATE_LIMIT_WINDOW",
+}
+
+
+def _parse_env_value(key: str, env_value: str) -> Any:
+    """根据配置键的默认值类型解析环境变量值"""
+    default = DEFAULT_CONFIGS.get(key)
+
+    # 布尔类型
+    if isinstance(default, bool):
+        return env_value.lower() in ("true", "1", "yes", "on")
+
+    # 整数类型
+    if isinstance(default, int):
+        try:
+            return int(env_value)
+        except ValueError:
+            return default
+
+    # 字符串类型
+    return env_value
+
+
+def _get_env_value(key: str) -> Any | None:
+    """获取环境变量的值"""
+    env_name = ENV_VAR_MAPPING.get(key)
+    if not env_name:
+        return None
+
+    env_value = os.environ.get(env_name)
+    if env_value is None:
+        return None
+
+    return _parse_env_value(key, env_value)
+
+
+def _get_fallback_value(key: str) -> Any:
+    """获取回退值：环境变量 > 默认值"""
+    env_value = _get_env_value(key)
+    if env_value is not None:
+        return env_value
+    return DEFAULT_CONFIGS.get(key)
+
 
 async def get_config(key: str, default: Any = None) -> Any:
-    """获取单个配置值"""
+    """
+    获取单个配置值
+    优先级：数据库 > 环境变量 > 默认值
+    """
     config = await SystemConfig.filter(key=key).first()
     if config:
         return config.value
-    # 如果数据库没有，返回默认值
+
+    # 数据库没有，尝试环境变量
+    env_value = _get_env_value(key)
+    if env_value is not None:
+        return env_value
+
+    # 最后使用默认值
     return DEFAULT_CONFIGS.get(key, default)
 
 
@@ -50,12 +123,12 @@ async def get_configs(*keys: str) -> dict[str, Any]:
     # 从数据库获取的值
     db_values = {c.key: c.value for c in configs}
 
-    # 合并默认值和数据库值
+    # 合并：数据库 > 环境变量 > 默认值
     for key in keys:
         if key in db_values:
             result[key] = db_values[key]
         else:
-            result[key] = DEFAULT_CONFIGS.get(key)
+            result[key] = _get_fallback_value(key)
 
     return result
 
@@ -75,10 +148,17 @@ async def set_configs(configs: dict[str, Any]) -> None:
 
 
 async def get_all_configs() -> dict[str, Any]:
-    """获取所有配置（合并默认值和数据库值）"""
+    """获取所有配置（合并默认值、环境变量和数据库值）"""
+    # 先用默认值
     result = DEFAULT_CONFIGS.copy()
 
-    # 数据库值覆盖默认值
+    # 环境变量覆盖
+    for key in DEFAULT_CONFIGS:
+        env_value = _get_env_value(key)
+        if env_value is not None:
+            result[key] = env_value
+
+    # 数据库值覆盖
     db_configs = await SystemConfig.all()
     for config in db_configs:
         result[config.key] = config.value
@@ -87,10 +167,14 @@ async def get_all_configs() -> dict[str, Any]:
 
 
 async def init_default_configs() -> None:
-    """初始化默认配置到数据库（仅在配置不存在时创建）"""
-    for key, value in DEFAULT_CONFIGS.items():
+    """
+    初始化默认配置到数据库
+    仅在配置不存在时创建，使用环境变量或默认值
+    """
+    for key in DEFAULT_CONFIGS:
         existing = await SystemConfig.filter(key=key).first()
         if not existing:
+            value = _get_fallback_value(key)
             await SystemConfig.create(key=key, value=value)
 
 
@@ -99,6 +183,7 @@ async def get_turnstile_config() -> dict[str, Any]:
     """获取 Turnstile 相关配置"""
     return await get_configs(
         "turnstile_enabled",
+        "turnstile_site_key",
         "turnstile_secret_key",
         "turnstile_verify_url",
     )

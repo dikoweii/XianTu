@@ -57,8 +57,9 @@ class SendEmailCodeResponse(BaseModel):
     message: str
 
 class SecuritySettingsResponse(BaseModel):
-    """安全设置响应"""
+    """安全设置响应（公开接口）"""
     turnstile_enabled: bool
+    turnstile_site_key: Optional[str] = None  # 前端需要用来显示验证组件
     email_verification_enabled: bool
     rate_limit_enabled: bool
     rate_limit_max: int
@@ -319,6 +320,7 @@ class SystemConfig(SystemConfigBase):
 class TurnstileConfigUpdate(BaseModel):
     """Turnstile 配置更新"""
     turnstile_enabled: Optional[bool] = None
+    turnstile_site_key: Optional[str] = None
     turnstile_secret_key: Optional[str] = None
     turnstile_verify_url: Optional[str] = None
 
@@ -343,6 +345,7 @@ class AllSecurityConfigResponse(BaseModel):
     """所有安全配置响应"""
     # Turnstile
     turnstile_enabled: bool
+    turnstile_site_key: Optional[str] = None
     turnstile_secret_key: Optional[str] = None
     turnstile_verify_url: str
     # 邮箱
