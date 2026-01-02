@@ -2179,7 +2179,7 @@
       }
 
       async function deleteWorkshopItemAdmin(itemId) {
-        if (!confirm('???????????????????')) return
+        if (!confirm('确认要永久删除这个创意吗？此操作不可恢复。')) return
         try {
           const response = await fetch(`${API_BASE}/admin/workshop/items/${itemId}`, {
             method: 'DELETE',
@@ -2192,9 +2192,9 @@
             refreshCurrentTab()
           } else {
             const error = await response.json()
-            alert(error.detail || '????')
+            alert(error.detail || '删除失败')
           }
         } catch (error) {
-          alert('????')
+          alert('网络错误')
         }
       }

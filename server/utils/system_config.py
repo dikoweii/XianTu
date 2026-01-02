@@ -104,7 +104,7 @@ async def get_config(key: str, default: Any = None) -> Any:
     """
     config = await SystemConfig.filter(key=key).first()
     if config:
-        return config.value
+        return _decode_config_value(config.value)
 
     # 数据库没有，尝试环境变量
     env_value = _get_env_value(key)
@@ -121,7 +121,7 @@ async def get_configs(*keys: str) -> dict[str, Any]:
     configs = await SystemConfig.filter(key__in=keys).all()
 
     # 从数据库获取的值
-    db_values = {c.key: c.value for c in configs}
+    db_values = {c.key: _decode_config_value(c.value) for c in configs}
 
     # 合并：数据库 > 环境变量 > 默认值
     for key in keys:
@@ -135,6 +135,7 @@ async def get_configs(*keys: str) -> dict[str, Any]:
 
 async def set_config(key: str, value: Any) -> None:
     """设置单个配置值"""
+    value = _encode_config_value(value)
     await SystemConfig.update_or_create(
         key=key,
         defaults={"value": value}
@@ -161,7 +162,7 @@ async def get_all_configs() -> dict[str, Any]:
     # 数据库值覆盖
     db_configs = await SystemConfig.all()
     for config in db_configs:
-        result[config.key] = config.value
+        result[config.key] = _decode_config_value(config.value)
 
     return result
 
@@ -174,8 +175,22 @@ async def init_default_configs() -> None:
     for key in DEFAULT_CONFIGS:
         existing = await SystemConfig.filter(key=key).first()
         if not existing:
-            value = _get_fallback_value(key)
+            value = _encode_config_value(_get_fallback_value(key))
             await SystemConfig.create(key=key, value=value)
+
+
+def _encode_config_value(value: Any) -> Any:
+    """确保 JSONField 可存储标量类型"""
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return {"__type__": "scalar", "value": value}
+    return value
+
+
+def _decode_config_value(value: Any) -> Any:
+    """还原标量包装值"""
+    if isinstance(value, dict) and value.get("__type__") == "scalar":
+        return value.get("value")
+    return value
 
 
 # 便捷函数：获取特定类别的配置
