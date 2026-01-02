@@ -107,20 +107,24 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
     msg.attach(MIMEText(html_content, "html", "utf-8"))
 
     smtp_host = config["smtp_host"]
-    smtp_port = config["smtp_port"]
+    smtp_port = int(config["smtp_port"])  # 确保是整数
     smtp_user = config["smtp_user"]
     smtp_password = config["smtp_password"]
+
+    print(f"[邮件] 正在连接 {smtp_host}:{smtp_port} (用户: {smtp_user})")
 
     try:
         if smtp_port == 465:
             # SSL 直连
             import ssl
             context = ssl.create_default_context()
+            print("[邮件] 使用 SSL 模式连接...")
             with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30) as server:
                 server.login(smtp_user, smtp_password)
                 server.sendmail(from_email, [email], msg.as_string())
         elif smtp_port == 587:
             # STARTTLS
+            print("[邮件] 使用 STARTTLS 模式连接...")
             with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
                 server.ehlo()
                 server.starttls()
@@ -128,14 +132,22 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
                 server.login(smtp_user, smtp_password)
                 server.sendmail(from_email, [email], msg.as_string())
         else:
-            # 其他端口尝试 STARTTLS
-            with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
-                try:
-                    server.starttls()
-                except smtplib.SMTPNotSupportedError:
-                    pass  # 不支持 TLS，继续
-                server.login(smtp_user, smtp_password)
-                server.sendmail(from_email, [email], msg.as_string())
+            # 其他端口先尝试SSL，失败再尝试STARTTLS
+            print(f"[邮件] 非标准端口 {smtp_port}，尝试连接...")
+            try:
+                import ssl
+                context = ssl.create_default_context()
+                with smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30) as server:
+                    server.login(smtp_user, smtp_password)
+                    server.sendmail(from_email, [email], msg.as_string())
+            except Exception:
+                with smtplib.SMTP(smtp_host, smtp_port, timeout=30) as server:
+                    try:
+                        server.starttls()
+                    except smtplib.SMTPNotSupportedError:
+                        pass
+                    server.login(smtp_user, smtp_password)
+                    server.sendmail(from_email, [email], msg.as_string())
 
         print(f"[邮件] 验证码已发送到 {email}")
         return True
