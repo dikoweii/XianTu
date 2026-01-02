@@ -112,21 +112,33 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
     smtp_user = config["smtp_user"]
     smtp_password = config["smtp_password"]
 
-    def _resolve_ipv4(host: str) -> str:
+    def _resolve_ipv4(host: str) -> str | None:
         try:
             infos = socket.getaddrinfo(host, None, family=socket.AF_INET)
             if infos:
                 return infos[0][4][0]
         except OSError:
-            return host
-        return host
+            return None
+        return None
 
-    smtp_host_ipv4 = _resolve_ipv4(smtp_host)
-    if smtp_host_ipv4 != smtp_host:
-        print(f"[邮件] 强制使用 IPv4: {smtp_host} -> {smtp_host_ipv4}")
-    smtp_target = smtp_host_ipv4
+    class _IPv4SMTP(smtplib.SMTP):
+        def _get_socket(self, host, port, timeout):
+            ipv4 = _resolve_ipv4(host)
+            target = ipv4 or host
+            if ipv4:
+                print(f"[邮件] 强制使用 IPv4: {host} -> {ipv4}")
+            return socket.create_connection((target, port), timeout, self.source_address)
 
-    print(f"[邮件] 正在连接 {smtp_target}:{smtp_port} (用户: {smtp_user})")
+    class _IPv4SMTPSSL(smtplib.SMTP_SSL):
+        def _get_socket(self, host, port, timeout):
+            ipv4 = _resolve_ipv4(host)
+            target = ipv4 or host
+            if ipv4:
+                print(f"[邮件] 强制使用 IPv4: {host} -> {ipv4}")
+            new_socket = socket.create_connection((target, port), timeout, self.source_address)
+            return self.context.wrap_socket(new_socket, server_hostname=host)
+
+    print(f"[邮件] 正在连接 {smtp_host}:{smtp_port} (用户: {smtp_user})")
 
     try:
         if smtp_port == 465:
@@ -134,13 +146,13 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
             import ssl
             context = ssl.create_default_context()
             print("[邮件] 使用 SSL 模式连接...")
-            with smtplib.SMTP_SSL(smtp_target, smtp_port, context=context, timeout=30) as server:
+            with _IPv4SMTPSSL(smtp_host, smtp_port, context=context, timeout=30) as server:
                 server.login(smtp_user, smtp_password)
                 server.sendmail(from_email, [email], msg.as_string())
         elif smtp_port == 587:
             # STARTTLS
             print("[邮件] 使用 STARTTLS 模式连接...")
-            with smtplib.SMTP(smtp_target, smtp_port, timeout=30) as server:
+            with _IPv4SMTP(smtp_host, smtp_port, timeout=30) as server:
                 server.ehlo()
                 server.starttls()
                 server.ehlo()
@@ -152,11 +164,11 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
             try:
                 import ssl
                 context = ssl.create_default_context()
-                with smtplib.SMTP_SSL(smtp_target, smtp_port, context=context, timeout=30) as server:
+                with _IPv4SMTPSSL(smtp_host, smtp_port, context=context, timeout=30) as server:
                     server.login(smtp_user, smtp_password)
                     server.sendmail(from_email, [email], msg.as_string())
             except Exception:
-                with smtplib.SMTP(smtp_target, smtp_port, timeout=30) as server:
+                with _IPv4SMTP(smtp_host, smtp_port, timeout=30) as server:
                     try:
                         server.starttls()
                     except smtplib.SMTPNotSupportedError:
