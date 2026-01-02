@@ -150,7 +150,10 @@ async def update_email_config(config_in: EmailConfigUpdate):
         updates["email_code_expire_minutes"] = config_in.email_code_expire_minutes
 
     if updates:
-        await set_configs(updates)
+        try:
+            await set_configs(updates)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=f"保存邮箱配置失败: {exc}")
 
     return {"message": "邮箱配置已更新", "updated_keys": list(updates.keys())}
 
