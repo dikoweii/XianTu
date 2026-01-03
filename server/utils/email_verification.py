@@ -6,6 +6,8 @@ import string
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.header import Header
+from email.utils import formataddr
 from datetime import datetime, timedelta
 
 from server.models import EmailVerificationCode
@@ -100,8 +102,8 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
     from_email = config["smtp_from_email"] or config["smtp_user"]
 
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = f"{from_name} <{from_email}>"
+    msg["Subject"] = Header(subject, "utf-8")
+    msg["From"] = formataddr((str(Header(from_name, "utf-8")), from_email))
     msg["To"] = email
 
     msg.attach(MIMEText(html_content, "html", "utf-8"))
