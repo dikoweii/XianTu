@@ -4,7 +4,6 @@
 import random
 import string
 import smtplib
-import socket
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
@@ -108,73 +107,58 @@ async def send_verification_email(email: str, code: str, purpose: str = "registe
     msg.attach(MIMEText(html_content, "html", "utf-8"))
 
     smtp_host = config["smtp_host"]
-    smtp_port = int(config["smtp_port"])  # 确保是整数
+    smtp_port = int(config["smtp_port"])
     smtp_user = config["smtp_user"]
     smtp_password = config["smtp_password"]
-
-    def _resolve_ipv4(host: str) -> str | None:
-        try:
-            infos = socket.getaddrinfo(host, None, family=socket.AF_INET)
-            if infos:
-                return infos[0][4][0]
-        except OSError:
-            return None
-        return None
-
-    class _IPv4SMTP(smtplib.SMTP):
-        def _get_socket(self, host, port, timeout):
-            ipv4 = _resolve_ipv4(host)
-            target = ipv4 or host
-            if ipv4:
-                print(f"[邮件] 强制使用 IPv4: {host} -> {ipv4}")
-            return socket.create_connection((target, port), timeout, self.source_address)
-
-    class _IPv4SMTPSSL(smtplib.SMTP_SSL):
-        def _get_socket(self, host, port, timeout):
-            ipv4 = _resolve_ipv4(host)
-            target = ipv4 or host
-            if ipv4:
-                print(f"[邮件] 强制使用 IPv4: {host} -> {ipv4}")
-            new_socket = socket.create_connection((target, port), timeout, self.source_address)
-            return self.context.wrap_socket(new_socket, server_hostname=host)
 
     print(f"[邮件] 正在连接 {smtp_host}:{smtp_port} (用户: {smtp_user})")
 
     try:
         if smtp_port == 465:
-            # SSL 直连
+            # SSL 直连 - 使用标准 SMTP_SSL
             import ssl
             context = ssl.create_default_context()
             print("[邮件] 使用 SSL 模式连接...")
-            with _IPv4SMTPSSL(smtp_host, smtp_port, context=context, timeout=30) as server:
+            server = smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30)
+            try:
                 server.login(smtp_user, smtp_password)
                 server.sendmail(from_email, [email], msg.as_string())
+            finally:
+                server.quit()
         elif smtp_port == 587:
             # STARTTLS
             print("[邮件] 使用 STARTTLS 模式连接...")
-            with _IPv4SMTP(smtp_host, smtp_port, timeout=30) as server:
+            server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+            try:
                 server.ehlo()
                 server.starttls()
                 server.ehlo()
                 server.login(smtp_user, smtp_password)
                 server.sendmail(from_email, [email], msg.as_string())
+            finally:
+                server.quit()
         else:
-            # 其他端口先尝试SSL，失败再尝试STARTTLS
+            # 其他端口先尝试 STARTTLS，失败再尝试 SSL
             print(f"[邮件] 非标准端口 {smtp_port}，尝试连接...")
             try:
+                server = smtplib.SMTP(smtp_host, smtp_port, timeout=30)
+                try:
+                    server.ehlo()
+                    server.starttls()
+                    server.ehlo()
+                    server.login(smtp_user, smtp_password)
+                    server.sendmail(from_email, [email], msg.as_string())
+                finally:
+                    server.quit()
+            except Exception:
                 import ssl
                 context = ssl.create_default_context()
-                with _IPv4SMTPSSL(smtp_host, smtp_port, context=context, timeout=30) as server:
+                server = smtplib.SMTP_SSL(smtp_host, smtp_port, context=context, timeout=30)
+                try:
                     server.login(smtp_user, smtp_password)
                     server.sendmail(from_email, [email], msg.as_string())
-            except Exception:
-                with _IPv4SMTP(smtp_host, smtp_port, timeout=30) as server:
-                    try:
-                        server.starttls()
-                    except smtplib.SMTPNotSupportedError:
-                        pass
-                    server.login(smtp_user, smtp_password)
-                    server.sendmail(from_email, [email], msg.as_string())
+                finally:
+                    server.quit()
 
         print(f"[邮件] 验证码已发送到 {email}")
         return True
